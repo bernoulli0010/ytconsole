@@ -352,6 +352,54 @@ function bindEvents() {
       renderPropertiesPanel();
     });
   });
+
+  // Properties Panel Toggle (Dolar butonu)
+  const togglePropsBtn = document.getElementById('togglePropsBtn');
+  if (togglePropsBtn) {
+    togglePropsBtn.addEventListener('click', () => {
+      const panel = document.getElementById('propertiesPanel');
+      if (panel) {
+        if (panel.style.display === 'none') {
+          panel.style.display = 'block';
+        } else {
+          panel.style.display = 'none';
+        }
+      }
+    });
+  }
+
+  // Search Scenes (Arama butonu)
+  const searchScenesBtn = document.getElementById('searchScenesBtn');
+  if (searchScenesBtn) {
+    searchScenesBtn.addEventListener('click', () => {
+      const query = prompt("Senaryolarda aramak için metin girin:");
+      if (query && query.trim()) {
+        filterScenes(query.trim());
+      }
+    });
+  }
+}
+
+function filterScenes(query) {
+  const container = document.getElementById('scenesList');
+  const sceneItems = container.querySelectorAll('.scene-item');
+  const lowerQuery = query.toLowerCase();
+  
+  let found = false;
+  sceneItems.forEach((item, index) => {
+    const scene = projectState.scenes[index];
+    if (scene && scene.text.toLowerCase().includes(lowerQuery)) {
+      item.style.display = 'block';
+      found = true;
+    } else {
+      item.style.display = 'none';
+    }
+  });
+  
+  if (!found) {
+    alert('Hiçbir senaryo bulunamadı.');
+    renderScenes();
+  }
 }
 
 // -- Scene Management --
