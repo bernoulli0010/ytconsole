@@ -751,24 +751,32 @@ async function fetchAllMedia(query, limitPerSource = 5, mediaType = 'all') {
     }));
   }
 
-  // 3. Fetch Pixabay Videos
-  if (fetchVideos) {
-    promises.push(fetch(`https://pixabay.com/api/videos/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(query)}&per_page=${pixabayLimit}&video_type=film`)
-    .then(res => res.json())
-    .then(data => {
-      if (data.hits) {
-        return data.hits.map(v => {
-          // Pixabay videos have multiple sizes, tiny, small, medium, large
-          const vidUrl = v.videos.medium ? v.videos.medium.url : v.videos.tiny.url;
-          // Try multiple thumbnail methods
-          let thumb = '';
-          if (v.picture_id) {
-            thumb = `https://i.vimeocdn.com/video/${v.picture_id}_640x360.jpg`;
-          } else if (v.image) {
-            thumb = v.image;
-          } else {
-            thumb = `https://img.pixabay.com/vimeo/${v.id}/thumbnails.jpg?width=320`;
-          }
+  // 3. Fetch Pixabay Videos (temporarily disabled - API issue)
+  // if (fetchVideos) {
+  //   promises.push(fetch(`https://pixabay.com/api/videos/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(query)}&per_page=${pixabayLimit}&video_type=film`)
+  //   .then(res => res.json())
+  //   .then(data => {
+  //     if (data.hits) {
+  //       return data.hits.map(v => {
+  //         const vidUrl = v.videos.medium ? v.videos.medium.url : v.videos.tiny.url;
+  //         const thumb = v.picture_id 
+  //           ? `https://i.vimeocdn.com/video/${v.picture_id}_640x360.jpg`
+  //           : `https://i.pixabay.com/videos/${v.id}/640x360.jpg`;
+  //         return {
+  //           type: 'video',
+  //           url: vidUrl,
+  //           thumbnail: thumb,
+  //           duration: v.duration,
+  //           source: 'Pixabay'
+  //         };
+  //       });
+  //     }
+  //   })
+  //   .catch(err => {
+  //     console.error("Pixabay error:", err);
+  //     return [];
+  //   }));
+  // }
           return {
             type: 'video',
             url: vidUrl,
