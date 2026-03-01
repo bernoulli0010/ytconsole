@@ -760,8 +760,8 @@ async function fetchAllMedia(query, limitPerSource = 5, mediaType = 'all') {
         return data.hits.map(v => {
           // Pixabay videos have multiple sizes, tiny, small, medium, large
           const vidUrl = v.videos.medium ? v.videos.medium.url : v.videos.tiny.url;
-          // Use a snapshot as thumbnail if available, or fetch from picture_id
-          const thumb = `https://i.vimeocdn.com/video/${v.picture_id}_640x360.jpg`;
+          // Use Pixabay's own thumbnail service
+          const thumb = `https://i.pixabay.com/videos/${v.id}/preview.jpg`;
           return {
             type: 'video',
             url: vidUrl,
