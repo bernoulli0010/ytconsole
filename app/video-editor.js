@@ -756,16 +756,19 @@ async function fetchAllMedia(query, limitPerSource = 5, mediaType = 'all') {
     promises.push(fetch(`https://pixabay.com/api/videos/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(query)}&per_page=${pixabayLimit}&video_type=film`)
     .then(res => res.json())
     .then(data => {
-      console.log("Pixabay Videos API Response:", data);
       if (data.hits) {
         return data.hits.map(v => {
           // Pixabay videos have multiple sizes, tiny, small, medium, large
           const vidUrl = v.videos.medium ? v.videos.medium.url : v.videos.tiny.url;
-          // Use Pixabay picture_id with Vimeo CDN - larger size 1280x720
-          const thumb = v.picture_id 
-            ? `https://i.vimeocdn.com/video/${v.picture_id}_1280x720.jpg`
-            : `https://i.pixabay.com/videos/${v.id}/640x360.jpg`;
-          console.log("Pixabay video thumb:", thumb, "picture_id:", v.picture_id, "id:", v.id);
+          // Try multiple thumbnail methods
+          let thumb = '';
+          if (v.picture_id) {
+            thumb = `https://i.vimeocdn.com/video/${v.picture_id}_640x360.jpg`;
+          } else if (v.image) {
+            thumb = v.image;
+          } else {
+            thumb = `https://img.pixabay.com/vimeo/${v.id}/thumbnails.jpg?width=320`;
+          }
           return {
             type: 'video',
             url: vidUrl,
