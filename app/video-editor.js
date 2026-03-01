@@ -665,7 +665,7 @@ async function searchAllMedia(query, showInPanel = false) {
         const el = document.createElement('div');
         el.className = 'media-item';
         el.innerHTML = `
-          <img src="${media.thumbnail}" alt="Stock Video">
+          <img src="${media.thumbnail}" alt="Stock Video" onerror="this.src='https://via.placeholder.com/320x180?text=Resim+Yok'">
           <div class="media-item-duration">${media.duration}s <span style="font-size:8px; opacity:0.8;">(${media.source})</span></div>
         `;
         el.onclick = () => {
@@ -756,6 +756,7 @@ async function fetchAllMedia(query, limitPerSource = 5, mediaType = 'all') {
     promises.push(fetch(`https://pixabay.com/api/videos/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(query)}&per_page=${pixabayLimit}&video_type=film`)
     .then(res => res.json())
     .then(data => {
+      console.log("Pixabay Videos API Response:", data);
       if (data.hits) {
         return data.hits.map(v => {
           // Pixabay videos have multiple sizes, tiny, small, medium, large
@@ -764,6 +765,7 @@ async function fetchAllMedia(query, limitPerSource = 5, mediaType = 'all') {
           const thumb = v.picture_id 
             ? `https://i.vimeocdn.com/video/${v.picture_id}_1280x720.jpg`
             : `https://i.pixabay.com/videos/${v.id}/640x360.jpg`;
+          console.log("Pixabay video thumb:", thumb, "picture_id:", v.picture_id, "id:", v.id);
           return {
             type: 'video',
             url: vidUrl,
