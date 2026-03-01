@@ -665,7 +665,7 @@ async function searchAllMedia(query, showInPanel = false) {
         const el = document.createElement('div');
         el.className = 'media-item';
         el.innerHTML = `
-          <img src="${media.thumbnail}" alt="Stock Video" onerror="this.src='https://via.placeholder.com/320x180?text=Resim+Yok'">
+          <img src="${media.thumbnail}" alt="Stock Video">
           <div class="media-item-duration">${media.duration}s <span style="font-size:8px; opacity:0.8;">(${media.source})</span></div>
         `;
         el.onclick = () => {
@@ -760,21 +760,6 @@ async function fetchAllMedia(query, limitPerSource = 5, mediaType = 'all') {
         return data.hits.map(v => {
           const vidUrl = v.videos.medium ? v.videos.medium.url : v.videos.tiny.url;
           const thumb = v.videos.medium ? v.videos.medium.thumbnail : v.videos.tiny.thumbnail;
-          return {
-            type: 'video',
-            url: vidUrl,
-            thumbnail: thumb,
-            duration: v.duration,
-            source: 'Pixabay'
-          };
-        });
-      }
-    })
-    .catch(err => {
-      console.error("Pixabay error:", err);
-      return [];
-    }));
-  }
           return {
             type: 'video',
             url: vidUrl,
