@@ -1963,9 +1963,13 @@ select,
 /* ── Editor Main Area ── */
 .editor-main {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 320px 1fr auto;
   overflow: hidden;
   background: var(--bg-page);
+}
+
+.editor-panels {
+  display: contents;
 }
 
 /* Sidebar */
