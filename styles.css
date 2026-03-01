@@ -2333,6 +2333,8 @@ select,
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .media-item {
