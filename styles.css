@@ -2331,10 +2331,13 @@ select,
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
   min-height: 0;
   height: 100%;
   box-sizing: border-box;
+  align-content: start;
+  position: relative;
 }
 
 .media-item {
@@ -2344,6 +2347,8 @@ select,
   overflow: hidden;
   cursor: pointer;
   position: relative;
+  min-height: 80px;
+  max-height: 150px;
 }
 
 .media-item img {
