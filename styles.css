@@ -2331,6 +2331,8 @@ select,
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .media-item {
