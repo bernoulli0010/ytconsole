@@ -760,8 +760,10 @@ async function fetchAllMedia(query, limitPerSource = 5, mediaType = 'all') {
         return data.hits.map(v => {
           // Pixabay videos have multiple sizes, tiny, small, medium, large
           const vidUrl = v.videos.medium ? v.videos.medium.url : v.videos.tiny.url;
-          // Use Pixabay's own thumbnail service
-          const thumb = `https://i.pixabay.com/videos/${v.id}/preview.jpg`;
+          // Use Pixabay picture_id with Vimeo CDN - larger size 1280x720
+          const thumb = v.picture_id 
+            ? `https://i.vimeocdn.com/video/${v.picture_id}_1280x720.jpg`
+            : `https://i.pixabay.com/videos/${v.id}/640x360.jpg`;
           return {
             type: 'video',
             url: vidUrl,
