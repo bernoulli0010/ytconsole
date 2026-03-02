@@ -1002,11 +1002,10 @@ window.clearSceneMedia = (id) => {
 
 // -- FFmpeg.wasm Export System --
 async function performVideoExport(resolution) {
-  const { createFFmpeg, fetchFile } = window.FFmpeg;
-  const ffmpeg = createFFmpeg({
-    core: 'https://unpkg.com/@ffmpeg/core@0.12.7/dist/umd/ffmpeg-core.js',
-    wasm: 'https://unpkg.com/@ffmpeg/core@0.12.7/dist/umd/ffmpeg-core.wasm'
-  });
+  const { FFmpeg } = window.FFmpegWASM;
+  const { fetchFile } = window.FFmpegUtil;
+  
+  const ffmpeg = new FFmpeg();
   window.activeFFmpeg = ffmpeg;
 
   const statusEl = document.getElementById('exportStatusText');
@@ -1033,7 +1032,10 @@ async function performVideoExport(resolution) {
 
   try {
     statusEl.textContent = "FFmpeg Çekirdeği Yükleniyor...";
-    await ffmpeg.load();
+    await ffmpeg.load({
+      coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.7/dist/umd/ffmpeg-core.js',
+      wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.7/dist/umd/ffmpeg-core.wasm'
+    });
 
     statusEl.textContent = "Font yükleniyor...";
     let hasFont = false;
@@ -1159,7 +1161,7 @@ async function performVideoExport(resolution) {
     
     // 3. Read Output and Download
     const data = await ffmpeg.readFile('output.mp4');
-    const blob = new Blob([data.buffer], { type: 'video/mp4' });
+    const blob = new Blob([data], { type: 'video/mp4' });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement('a');
