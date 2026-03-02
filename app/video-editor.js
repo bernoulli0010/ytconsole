@@ -1003,7 +1003,7 @@ window.clearSceneMedia = (id) => {
 // -- FFmpeg.wasm Export System --
 async function performVideoExport(resolution) {
   const { FFmpeg } = window.FFmpegWASM;
-  const { fetchFile } = window.FFmpegUtil;
+  const { fetchFile, toBlobURL } = window.FFmpegUtil;
   
   const ffmpeg = new FFmpeg();
   window.activeFFmpeg = ffmpeg;
@@ -1032,9 +1032,10 @@ async function performVideoExport(resolution) {
 
   try {
     statusEl.textContent = "FFmpeg Çekirdeği Yükleniyor...";
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.7/dist/umd';
     await ffmpeg.load({
-      coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.7/dist/umd/ffmpeg-core.js',
-      wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.7/dist/umd/ffmpeg-core.wasm'
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
     });
 
     statusEl.textContent = "Font yükleniyor...";
