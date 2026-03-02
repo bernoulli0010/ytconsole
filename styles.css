@@ -2244,11 +2244,19 @@ select,
   display: flex;
   align-items: center;
   padding: 0 16px;
+  position: relative;
+  z-index: 10;
 }
 
 .timeline-tools {
   display: flex;
   gap: 8px;
+}
+
+.timeline-tools .btn-text {
+  position: relative;
+  z-index: 11;
+  cursor: pointer;
 }
 
 .timeline-tracks-container {
@@ -2257,6 +2265,7 @@ select,
   overflow-x: auto;
   overflow-y: hidden;
   background: var(--bg-page);
+  z-index: 1;
 }
 
 .timeline-track {

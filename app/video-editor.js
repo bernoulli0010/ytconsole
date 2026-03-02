@@ -208,26 +208,69 @@ function bindEvents() {
     });
   });
 
-  // Timeline Buttons
-  document.querySelectorAll('.timeline-tools .btn-text').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const action = e.currentTarget.textContent.trim();
-      if (action === "Ekle") {
-        document.getElementById('addSceneBtn').click();
-      } else if (action === "Sil") {
-        if (projectState.scenes.length > 1) {
-          projectState.scenes = projectState.scenes.filter(s => s.id !== projectState.activeSceneId);
-          projectState.activeSceneId = projectState.scenes[0].id;
-          updateTotalDuration();
-          renderScenes();
-          renderTimeline();
-        } else {
-          alert("En az bir bölüm olmak zorunda.");
-        }
-      } else if (action === "Böl") {
-        alert("Böl (Split) özelliği için zaman çizelgesi üzerinde bir noktaya tıklamalısınız. (Yakında)");
-      }
-    });
+  // Timeline Buttons - Ekle
+  document.getElementById('timelineAddBtn').addEventListener('click', () => {
+    document.getElementById('addSceneBtn').click();
+  });
+
+  // Timeline Buttons - Sil
+  document.getElementById('timelineDeleteBtn').addEventListener('click', () => {
+    if (projectState.scenes.length > 1) {
+      const deletedId = projectState.activeSceneId;
+      const deletedIndex = projectState.scenes.findIndex(s => s.id === deletedId);
+      projectState.scenes = projectState.scenes.filter(s => s.id !== deletedId);
+      // Silinen sahnenin yanındaki sahneyi aktif yap
+      const newIndex = Math.min(deletedIndex, projectState.scenes.length - 1);
+      projectState.activeSceneId = projectState.scenes[newIndex].id;
+      updateTotalDuration();
+      renderScenes();
+      renderTimeline();
+    } else {
+      alert("En az bir bölüm olmak zorunda.");
+    }
+  });
+
+  // Timeline Buttons - Böl (Split)
+  document.getElementById('timelineSplitBtn').addEventListener('click', () => {
+    const activeScene = projectState.scenes.find(s => s.id === projectState.activeSceneId);
+    if (!activeScene) return;
+
+    if (activeScene.duration < 2) {
+      alert("Bu bölüm çok kısa, bölünemez. (En az 2 saniye olmalı)");
+      return;
+    }
+
+    const activeIndex = projectState.scenes.findIndex(s => s.id === projectState.activeSceneId);
+    const halfDuration = activeScene.duration / 2;
+
+    // Metni ikiye böl (kelime bazında)
+    const words = activeScene.text.trim().split(/\s+/).filter(w => w.length > 0);
+    const midWord = Math.ceil(words.length / 2);
+    const firstHalfText = words.slice(0, midWord).join(' ');
+    const secondHalfText = words.slice(midWord).join(' ');
+
+    // Mevcut sahneyi güncelle (ilk yarı)
+    activeScene.text = firstHalfText;
+    activeScene.duration = halfDuration;
+
+    // Yeni sahne oluştur (ikinci yarı)
+    const newScene = {
+      id: generateId(),
+      text: secondHalfText,
+      voice: activeScene.voice,
+      media: activeScene.media ? { ...activeScene.media } : null,
+      overlays: [],
+      duration: halfDuration,
+      autoSearched: activeScene.autoSearched
+    };
+
+    // Yeni sahneyi mevcut sahnenin hemen arkasına ekle
+    projectState.scenes.splice(activeIndex + 1, 0, newScene);
+    projectState.activeSceneId = newScene.id;
+
+    updateTotalDuration();
+    renderScenes();
+    renderTimeline();
   });
 
   // Add Scene
