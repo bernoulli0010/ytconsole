@@ -1173,7 +1173,7 @@ function updatePreview() {
   }
 
   if (activeScene.text && projectState.subtitlePreset !== 'none') {
-    const presetClass = projectState.subtitlePreset ? `preset-${projectState.subtitlePreset}` : 'preset-default';
+    const presetClass = projectState.subtitlePreset ? `preset-${projectState.subtitlePreset}` : 'preset-classic-dark';
     subtitle.innerHTML = `<div class="subtitle-text ${presetClass}">${activeScene.text}</div>`;
   } else {
     subtitle.innerHTML = '';
