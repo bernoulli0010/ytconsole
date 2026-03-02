@@ -2268,6 +2268,12 @@ select,
   z-index: 1;
 }
 
+.timeline-track-group {
+  position: relative;
+  min-width: 100%;
+  width: max-content; /* Sahneler uzadıkça track'in de uzaması için */
+}
+
 .timeline-track {
   height: 40px;
   position: relative;
@@ -2291,6 +2297,34 @@ select,
 
 .clip-video.empty {
   background: #94a3b8;
+}
+
+.clip-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  background: rgba(255, 255, 255, 0.3);
+  cursor: ew-resize;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.clip-resize-handle:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.timeline-clip:hover .clip-resize-handle {
+  opacity: 1;
+}
+
+.clip-resize-left {
+  left: 0;
+}
+
+.clip-resize-right {
+  right: 0;
 }
 
 .clip-label {
@@ -2424,7 +2458,7 @@ select,
   width: 2px;
   background: var(--danger);
   z-index: 5;
-  pointer-events: none;
+  cursor: ew-resize; /* Pointer-events kaldırıldı ve imleç eklendi */
 }
 
 .playhead-head {
@@ -2434,6 +2468,7 @@ select,
   width: 10px;
   height: 10px;
   background: var(--danger);
+  pointer-events: none; /* head tıklandığında playhead'e geçsin */
 }
 
 .playhead-line {
@@ -2446,6 +2481,23 @@ select,
   height: 24px;
   border-bottom: 1px solid var(--border);
   position: relative;
+  min-width: 100%;
+}
+
+.ruler-mark {
+  position: absolute;
+  top: 14px;
+  height: 10px;
+  width: 1px;
+  background: var(--border);
+}
+
+.ruler-text {
+  position: absolute;
+  top: 2px;
+  font-size: 10px;
+  color: var(--text-muted);
+  transform: translateX(-50%);
 }
 
 /* Media Search */

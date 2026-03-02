@@ -294,6 +294,9 @@ function bindEvents() {
   // Play/Pause
   document.getElementById('playBtn').addEventListener('click', togglePlay);
 
+  // Timeline Interactions (Playhead Seek/Drag & Resize)
+  initTimelineInteractions();
+
   // Trigger properties panel on load
   if (projectState.scenes.length > 0) renderPropertiesPanel();
 
@@ -1291,6 +1294,105 @@ function updatePreview() {
   }
 }
 
+// -- Timeline Interactions --
+let isDraggingPlayhead = false;
+let isResizingClip = false;
+let resizeSceneId = null;
+let resizeEdge = null; // 'left' or 'right'
+let resizeInitialX = 0;
+let resizeInitialDuration = 0;
+
+function initTimelineInteractions() {
+  const container = document.getElementById('timelineContainer');
+  const playhead = document.getElementById('playhead');
+  const pixelsPerSecond = 30;
+
+  // 1. Seek on timeline click
+  container.addEventListener('mousedown', (e) => {
+    // If clicking on a resize handle, don't seek
+    if (e.target.classList.contains('clip-resize-handle')) {
+      isResizingClip = true;
+      resizeSceneId = e.target.parentElement.getAttribute('data-id');
+      resizeEdge = e.target.classList.contains('clip-resize-right') ? 'right' : 'left';
+      resizeInitialX = e.clientX;
+      const scene = projectState.scenes.find(s => s.id === resizeSceneId);
+      resizeInitialDuration = scene ? scene.duration : 0;
+      return;
+    }
+
+    // Playhead drag or direct seek
+    isDraggingPlayhead = true;
+    updateSeekPosition(e.clientX);
+    
+    // Pause if playing while seeking
+    if (projectState.isPlaying) {
+      togglePlay();
+    }
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (isDraggingPlayhead) {
+      updateSeekPosition(e.clientX);
+    } else if (isResizingClip) {
+      handleClipResize(e.clientX);
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isDraggingPlayhead) {
+      isDraggingPlayhead = false;
+      // Re-render to ensure active scene logic fires correctly after seek
+      updatePlayhead();
+    }
+    
+    if (isResizingClip) {
+      isResizingClip = false;
+      resizeSceneId = null;
+      resizeEdge = null;
+      updateTotalDuration();
+      renderScenes(); // Refresh duration in properties panel if open
+      renderTimeline(); // Snap back to grid properly
+    }
+  });
+
+  function updateSeekPosition(clientX) {
+    const rect = container.getBoundingClientRect();
+    // Padding/margin offset for playhead is typically 0 for the start of the tracks
+    let x = clientX - rect.left;
+    
+    // Constrain to bounds
+    x = Math.max(0, Math.min(x, projectState.totalDuration * pixelsPerSecond));
+    
+    projectState.currentTime = x / pixelsPerSecond;
+    updatePlayhead();
+  }
+
+  function handleClipResize(clientX) {
+    const scene = projectState.scenes.find(s => s.id === resizeSceneId);
+    if (!scene) return;
+
+    const dx = clientX - resizeInitialX;
+    const durationDelta = dx / pixelsPerSecond;
+
+    if (resizeEdge === 'right') {
+      let newDuration = resizeInitialDuration + durationDelta;
+      newDuration = Math.max(1, newDuration); // Minimum 1 second
+      scene.duration = parseFloat(newDuration.toFixed(1));
+    } else if (resizeEdge === 'left') {
+      // Modifying the left edge actually means changing the duration AND moving the start point,
+      // but since our scenes flow sequentially, changing duration of scene N affects all N+1 scenes.
+      // For simplicity in a sequential builder, left drag also just changes duration in reverse.
+      let newDuration = resizeInitialDuration - durationDelta;
+      newDuration = Math.max(1, newDuration);
+      scene.duration = parseFloat(newDuration.toFixed(1));
+    }
+    
+    // Fast visual update
+    updateTotalDuration();
+    renderTimeline();
+  }
+}
+
 // -- Timeline & Playback --
 function updateTotalDuration() {
   projectState.totalDuration = projectState.scenes.reduce((acc, scene) => acc + scene.duration, 0);
@@ -1305,7 +1407,29 @@ function renderTimeline() {
   
   const pixelsPerSecond = 30; // 30px per second for timeline scale
   
+  // -- Render Ruler --
+  const ruler = document.getElementById('timelineRuler');
+  ruler.innerHTML = '';
+  // Ruler is at least as wide as the window, or the total duration, plus some padding
+  const totalWidth = Math.max(window.innerWidth, projectState.totalDuration * pixelsPerSecond + 200);
+  ruler.style.width = `${totalWidth}px`;
+  
+  // Draw marks every 1 second, text every 5 seconds
+  for (let i = 0; i <= projectState.totalDuration + 5; i++) {
+    const x = i * pixelsPerSecond;
+    if (i % 5 === 0) {
+      ruler.innerHTML += `<div class="ruler-text" style="left:${x}px">${formatTime(i)}</div>`;
+      ruler.innerHTML += `<div class="ruler-mark" style="left:${x}px; height:10px;"></div>`;
+    } else {
+      ruler.innerHTML += `<div class="ruler-mark" style="left:${x}px; height:5px; top:19px;"></div>`;
+    }
+  }
+  
+  // -- Render Tracks --
   let currentOffset = 0;
+  
+  // Update track group width
+  document.querySelector('.timeline-track-group').style.width = `${projectState.totalDuration * pixelsPerSecond + 100}px`;
   
   projectState.scenes.forEach((scene, index) => {
     const width = scene.duration * pixelsPerSecond;
@@ -1313,14 +1437,22 @@ function renderTimeline() {
     // Video Clip
     const vClip = document.createElement('div');
     vClip.className = `timeline-clip clip-video ${!scene.media ? 'empty' : ''}`;
+    vClip.setAttribute('data-id', scene.id);
     vClip.style.left = `${currentOffset}px`;
     vClip.style.width = `${width}px`;
     if (scene.media) {
       vClip.style.backgroundImage = `url(${scene.media.thumbnail})`;
     }
-    vClip.innerHTML = `<span class="clip-label">Bölüm ${index + 1}</span>`;
+    vClip.innerHTML = `
+      <div class="clip-resize-handle clip-resize-left"></div>
+      <span class="clip-label">Bölüm ${index + 1} (${scene.duration}s)</span>
+      <div class="clip-resize-handle clip-resize-right"></div>
+    `;
     
-    vClip.onclick = () => {
+    vClip.onclick = (e) => {
+      // Ignore click if clicking resize handles
+      if (e.target.classList.contains('clip-resize-handle')) return;
+      
       projectState.activeSceneId = scene.id;
       renderScenes();
     };
@@ -1395,7 +1527,9 @@ function togglePlay() {
 function updatePlayhead() {
   const pixelsPerSecond = 30;
   const playhead = document.getElementById('playhead');
-  playhead.style.left = `${20 + (projectState.currentTime * pixelsPerSecond)}px`;
+  // Ruler starts right at the edge in tracks-container, so offset is just for visual padding if needed.
+  // Actually, left should just be currentTime * pixelsPerSecond.
+  playhead.style.left = `${projectState.currentTime * pixelsPerSecond}px`;
   
   document.getElementById('timeDisplay').textContent = `${formatTime(projectState.currentTime)} / ${formatTime(projectState.totalDuration)}`;
   
