@@ -1032,7 +1032,7 @@ async function performVideoExport(resolution) {
 
   try {
     statusEl.textContent = "FFmpeg Çekirdeği Yükleniyor...";
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.7/dist/umd';
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
     await ffmpeg.load({
       coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
       wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
