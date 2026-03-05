@@ -1076,7 +1076,7 @@ async function performVideoExport(resolution) {
       if (hasFont) {
         // Add Subtitle from scene.text
         if (scene.text && projectState.subtitlePreset !== 'none') {
-           let safeText = scene.text.replace(/'/g, "\\'").replace(/:/g, "\\:");
+           let safeText = scene.text.replace(/'/g, "\\'").replace(/:/g, "\\:").replace(/,/g, "\\,");
            // Font size proportional to video height, positioned at bottom 10%
            let subProps = `fontfile=font.ttf:text='${safeText}':fontsize=(h*0.04):x=(w-text_w)/2:y=(h-text_h)-(h*0.1)`;
            
@@ -1106,8 +1106,8 @@ async function performVideoExport(resolution) {
         // Add custom text overlays
         if (scene.overlays && scene.overlays.length > 0) {
         scene.overlays.forEach(ov => {
-          // Escape single quotes and colons for FFmpeg
-          let safeText = ov.text.replace(/'/g, "\\'").replace(/:/g, "\\:");
+          // Escape single quotes, colons, and commas for FFmpeg
+          let safeText = ov.text.replace(/'/g, "\\'").replace(/:/g, "\\:").replace(/,/g, "\\,");
           
           let drawtextProps = `fontfile=font.ttf:text='${safeText}':fontsize=${ov.fontSize}:x=(w-text_w)*(${ov.x}/100):y=(h-text_h)*(${ov.y}/100)`;
           
@@ -1134,7 +1134,8 @@ async function performVideoExport(resolution) {
       }
 
       // Resize to selected resolution (1080p etc.), set DAR to 16:9, trim to scene.duration, add text overlays
-      concatFilter += `[${i}:v]scale=${resolution}:force_original_aspect_ratio=decrease,pad=${resolution}:(ow-iw)/2:(oh-ih)/2,setdar=16/9${textFilters},trim=duration=${scene.duration}[v${i}];`;
+      const resColon = resolution.replace('x', ':');
+      concatFilter += `[${i}:v]scale=${resColon}:force_original_aspect_ratio=decrease,pad=${resColon}:(ow-iw)/2:(oh-ih)/2,setdar=16/9${textFilters},trim=duration=${scene.duration}[v${i}];`;
     }
 
     // 2. Concat the streams
@@ -1158,7 +1159,11 @@ async function performVideoExport(resolution) {
     ];
 
     console.log("Running FFmpeg with args:", args);
-    await ffmpeg.exec(args);
+    const code = await ffmpeg.exec(args);
+    
+    if (code !== 0) {
+      throw new Error(`FFmpeg işlemi hata kodu ile sonlandı: ${code}`);
+    }
 
     statusEl.textContent = "Video indiriliyor...";
     
