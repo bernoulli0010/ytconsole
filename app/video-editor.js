@@ -1019,6 +1019,45 @@ async function performVideoExport(resolution) {
     return;
   }
 
+  // --- TOKEN CHECK ---
+  let userId = null;
+  let currentTokens = 0;
+  const TOKEN_COST = 5;
+
+  if (supabaseClient) {
+    statusEl.textContent = "Kullanıcı bilgileri kontrol ediliyor...";
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (!session) {
+      alert("Video oluşturmak için lütfen sisteme giriş yapın.");
+      document.getElementById('exportModal').remove();
+      return;
+    }
+    
+    userId = session.user.id;
+    const { data: profile, error: profileErr } = await supabaseClient
+      .from('profiles')
+      .select('token_balance')
+      .eq('id', userId)
+      .single();
+      
+    if (profileErr || !profile) {
+      alert("Kullanıcı token bilgileri alınamadı.");
+      document.getElementById('exportModal').remove();
+      return;
+    }
+    
+    currentTokens = profile.token_balance || 0;
+    if (currentTokens < TOKEN_COST) {
+      alert(`Yetersiz token! Video oluşturmak için en az ${TOKEN_COST} token gereklidir. (Mevcut: ${currentTokens})`);
+      document.getElementById('exportModal').remove();
+      return;
+    }
+  } else {
+    console.warn("Supabase client bulunamadı, token kontrolü atlanıyor.");
+  }
+  // -------------------
+
   ffmpeg.on('log', ({ message }) => {
     console.log('[FFmpeg]', message);
   });
@@ -1179,10 +1218,27 @@ async function performVideoExport(resolution) {
     a.click();
     document.body.removeChild(a);
 
+    let tokenMsg = "";
+    if (supabaseClient && userId) {
+      statusEl.textContent = "Token düşülüyor...";
+      const newBalance = currentTokens - TOKEN_COST;
+      
+      const { error: deductErr } = await supabaseClient
+        .from('profiles')
+        .update({ token_balance: newBalance })
+        .eq('id', userId);
+        
+      if (!deductErr) {
+        tokenMsg = `\n\nHesabınızdan ${TOKEN_COST} token düşüldü. (Kalan: ${newBalance})`;
+      } else {
+        console.error("Token deduction failed:", deductErr);
+      }
+    }
+
     const modal = document.getElementById('exportModal');
     if (modal) modal.remove();
     window.activeFFmpeg = null;
-    alert("Video başarıyla oluşturuldu ve bilgisayarınıza indirildi!");
+    alert(`Video başarıyla oluşturuldu ve bilgisayarınıza indirildi!${tokenMsg}`);
 
   } catch (err) {
     console.error("FFmpeg Export Error:", err);
