@@ -1379,7 +1379,7 @@ async function performVideoExport(resolution) {
         // Add Subtitle from scene.text
         if (scene.text && projectState.subtitlePreset !== 'none') {
            // Replace newlines with spaces for drawtext, and safely escape quotes/colons/commas
-           let safeText = scene.text.replace(/\n/g, ' ').replace(/'/g, "\\u2019").replace(/:/g, "\\:").replace(/,/g, "\\,");
+           let safeText = scene.text.replace(/[\n\r]+/g, ' ').replace(/'/g, "\\u2019").replace(/:/g, "\\:").replace(/,/g, "\\,").replace(/%/g, "\\%");
            // Font size proportional to video height, positioned at bottom 10%
            let subProps = `fontfile=font.ttf:text='${safeText}':fontsize=(h*0.04):x=(w-text_w)/2:y=(h-text_h)-(h*0.1)`;
            
@@ -1409,7 +1409,7 @@ async function performVideoExport(resolution) {
         // Add custom text overlays
         if (scene.overlays && scene.overlays.length > 0) {
         scene.overlays.forEach(ov => {
-          let safeText = ov.text.replace(/\n/g, ' ').replace(/'/g, "\\u2019").replace(/:/g, "\\:").replace(/,/g, "\\,");
+          let safeText = ov.text.replace(/[\n\r]+/g, ' ').replace(/'/g, "\\u2019").replace(/:/g, "\\:").replace(/,/g, "\\,").replace(/%/g, "\\%");
           let drawtextProps = `fontfile=font.ttf:text='${safeText}':fontsize=${ov.fontSize}:x=(w-text_w)*(${ov.x}/100):y=(h-text_h)*(${ov.y}/100)`;
           if (ov.color) drawtextProps += `:fontcolor=${ov.color.replace('#', '0x')}`; else drawtextProps += `:fontcolor=white`;
           if (ov.bgColor && ov.bgColor !== 'transparent') {
@@ -1434,7 +1434,7 @@ async function performVideoExport(resolution) {
          concatFilter += `[${audioIndices[i]}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${scene.duration},asetpts=PTS-STARTPTS[a${i}];`;
       } else {
          // anullsrc generates silence. Then we format it explicitly just like the rest
-         concatFilter += `anullsrc=channel_layout=stereo:sample_rate=44100,atrim=0:${scene.duration},asetpts=PTS-STARTPTS[a${i}];`;
+         concatFilter += `anullsrc=r=44100:cl=stereo:d=${scene.duration},asetpts=PTS-STARTPTS[a${i}];`;
       }
     }
 
