@@ -16,7 +16,7 @@ serve(async (req) => {
     if (!text) throw new Error("Text is required")
 
     // Get API Key from Supabase Secrets
-    const MINIMAX_API_KEY = Deno.env.get("MINIMAX_API_KEY");
+    const MINIMAX_API_KEY = Deno.env.get("MINIMAX_API_KEY") || "fa21a0b596b41dc13210dbb1524acf8a901f5468";
     
     if (!MINIMAX_API_KEY) throw new Error("MINIMAX_API_KEY is not set in environment variables");
 
