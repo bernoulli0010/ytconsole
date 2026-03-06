@@ -566,6 +566,7 @@
         });
 
         const data = await response.json();
+        console.log('Fetch competitors response:', response.status, data);
         
         if (data.success) {
           competitors = data.competitors || [];
@@ -574,6 +575,7 @@
           $('competitorCountNum').textContent = competitors.length;
           $('competitorLimitText').textContent = `Takip edilen: ${competitors.length}/10`;
         } else {
+          console.error('Competitor error:', data.error);
           toast(data.error || 'Rakipler yüklenirken hata oluştu');
         }
       } catch (error) {
