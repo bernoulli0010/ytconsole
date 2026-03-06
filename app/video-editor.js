@@ -11,6 +11,12 @@ const PIXABAY_API_KEY = "54799067-a3fed06a32d899bc1ede143be";
 let projectState = {
   title: "Başlıksız",
   subtitlePreset: "default",
+  logo: {
+    url: null,
+    position: 'top-right',
+    size: 15,
+    margin: 5
+  },
   scenes: [
     {
       id: generateId(),
@@ -194,6 +200,8 @@ function bindEvents() {
       if(metinPanel) metinPanel.style.display = 'none';
       const altyaziPanel = document.getElementById('altyazilarPanelContent');
       if(altyaziPanel) altyaziPanel.style.display = 'none';
+      const logoPanel = document.getElementById('logoPanelContent');
+      if(logoPanel) logoPanel.style.display = 'none';
       
       if (panel === 'senaryo') {
         document.getElementById('activePanelContent').style.display = 'flex';
@@ -208,6 +216,8 @@ function bindEvents() {
         if(metinPanel) metinPanel.style.display = 'flex';
       } else if (panel === 'altyazilar') {
         if(altyaziPanel) altyaziPanel.style.display = 'flex';
+      } else if (panel === 'logo') {
+        if(logoPanel) logoPanel.style.display = 'flex';
       } else {
         // Fallback for others
         document.getElementById('activePanelContent').style.display = 'flex';
@@ -430,6 +440,65 @@ function bindEvents() {
       if (query && query.trim()) {
         filterScenes(query.trim());
       }
+    });
+  }
+
+  // Logo Panel Logic
+  const logoUploadInput = document.getElementById('logoUploadInput');
+  const logoPreviewContainer = document.getElementById('logoPreviewContainer');
+  const logoPreviewImg = document.getElementById('logoPreviewImg');
+  const removeLogoBtn = document.getElementById('removeLogoBtn');
+  const logoPositionSelect = document.getElementById('logoPositionSelect');
+  const logoSizeSlider = document.getElementById('logoSizeSlider');
+  const logoSizeVal = document.getElementById('logoSizeVal');
+  const logoMarginSlider = document.getElementById('logoMarginSlider');
+  const logoMarginVal = document.getElementById('logoMarginVal');
+
+  if (logoUploadInput) {
+    logoUploadInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        projectState.logo.url = ev.target.result;
+        logoPreviewImg.src = projectState.logo.url;
+        logoPreviewContainer.style.display = 'block';
+        updatePreview();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (removeLogoBtn) {
+    removeLogoBtn.addEventListener('click', () => {
+      projectState.logo.url = null;
+      logoPreviewContainer.style.display = 'none';
+      if(logoUploadInput) logoUploadInput.value = "";
+      updatePreview();
+    });
+  }
+
+  if (logoPositionSelect) {
+    logoPositionSelect.addEventListener('change', (e) => {
+      projectState.logo.position = e.target.value;
+      updatePreview();
+    });
+  }
+
+  if (logoSizeSlider) {
+    logoSizeSlider.addEventListener('input', (e) => {
+      projectState.logo.size = parseInt(e.target.value);
+      if (logoSizeVal) logoSizeVal.textContent = projectState.logo.size + '%';
+      updatePreview();
+    });
+  }
+
+  if (logoMarginSlider) {
+    logoMarginSlider.addEventListener('input', (e) => {
+      projectState.logo.margin = parseInt(e.target.value);
+      if (logoMarginVal) logoMarginVal.textContent = projectState.logo.margin + '%';
+      updatePreview();
     });
   }
 }
@@ -1192,7 +1261,45 @@ async function performVideoExport(resolution) {
     for (let i = 0; i < scenesWithMedia.length; i++) {
       concatStreamInputs += `[v${i}]`;
     }
-    concatFilter += `${concatStreamInputs}concat=n=${scenesWithMedia.length}:v=1:a=0[outv]`;
+    
+    // Check if we need to apply a global logo
+    let mapOut = '[outv]';
+    if (projectState.logo && projectState.logo.url) {
+      statusEl.textContent = "Logo indiriliyor...";
+      const logoData = await fetchFile(projectState.logo.url);
+      await ffmpeg.writeFile('logo.png', logoData);
+      inputs.push('-i', 'logo.png');
+      const logoIndex = inputs.indexOf('logo.png'); // This is usually inputs.length - 1 if we count from 0 considering other inputs... wait.
+      // Actually we have '-loop 1 -i input' so we can't just use array index easily.
+      // Better way: inputs array only has '-i' followed by filename. Let's count '-i'.
+      let totalInputs = inputs.filter(item => item === '-i').length;
+      const actualLogoIndex = totalInputs - 1; // 0-based index for FFmpeg input
+
+      // Add concat filter first, then overlay filter
+      concatFilter += `${concatStreamInputs}concat=n=${scenesWithMedia.length}:v=1:a=0[concatv];`;
+      
+      const pos = projectState.logo.position || 'top-right';
+      const sizePct = projectState.logo.size || 15;
+      const marginPct = projectState.logo.margin || 5;
+
+      // Calculate width and margin based on main video width (W) and height (H)
+      const scaleStr = `scale=iw*(${sizePct}/100):-1`; // scale based on original image size... wait. We want size relative to video width.
+      // Better: scale=(W*${sizePct}/100):-1
+      
+      let xPos = "0";
+      let yPos = "0";
+      
+      if (pos.includes('left')) xPos = `W*(${marginPct}/100)`;
+      if (pos.includes('right')) xPos = `W-w-W*(${marginPct}/100)`;
+      
+      if (pos.includes('top')) yPos = `H*(${marginPct}/100)`;
+      if (pos.includes('bottom')) yPos = `H-h-H*(${marginPct}/100)`;
+
+      // Scale logo and then overlay
+      concatFilter += `[${actualLogoIndex}:v]scale=(main_w*${sizePct}/100):-1[logo];[concatv][logo]overlay=x=${xPos}:y=${yPos}[outv]`;
+    } else {
+      concatFilter += `${concatStreamInputs}concat=n=${scenesWithMedia.length}:v=1:a=0[outv]`;
+    }
 
     const args = [
       ...inputs,
@@ -1273,8 +1380,36 @@ function updatePreview() {
   const placeholder = document.getElementById('previewPlaceholder');
   const subtitle = document.getElementById('previewSubtitle');
   const badge = document.getElementById('currentSceneBadge');
+  const globalLogo = document.getElementById('globalLogoPreview');
 
   badge.textContent = `Bölüm ${projectState.scenes.findIndex(s => s.id === activeScene.id) + 1}`;
+
+  // Update Global Logo Preview
+  if (globalLogo) {
+    if (projectState.logo && projectState.logo.url) {
+      globalLogo.style.display = 'block';
+      globalLogo.src = projectState.logo.url;
+      
+      const pos = projectState.logo.position || 'top-right';
+      const size = projectState.logo.size || 15;
+      const margin = projectState.logo.margin || 5;
+
+      globalLogo.style.width = `${size}%`;
+      globalLogo.style.height = 'auto';
+      globalLogo.style.top = 'auto';
+      globalLogo.style.bottom = 'auto';
+      globalLogo.style.left = 'auto';
+      globalLogo.style.right = 'auto';
+
+      if (pos.includes('top')) globalLogo.style.top = `${margin}%`;
+      if (pos.includes('bottom')) globalLogo.style.bottom = `${margin}%`;
+      if (pos.includes('left')) globalLogo.style.left = `${margin}%`;
+      if (pos.includes('right')) globalLogo.style.right = `${margin}%`;
+
+    } else {
+      globalLogo.style.display = 'none';
+    }
+  }
 
   if (activeScene.media) {
     placeholder.style.display = 'none';
