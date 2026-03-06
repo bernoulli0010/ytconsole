@@ -1268,10 +1268,10 @@ async function performVideoExport(resolution) {
       statusEl.textContent = "Logo indiriliyor...";
       const logoData = await fetchFile(projectState.logo.url);
       await ffmpeg.writeFile('logo.png', logoData);
-      inputs.push('-i', 'logo.png');
-      const logoIndex = inputs.indexOf('logo.png'); // This is usually inputs.length - 1 if we count from 0 considering other inputs... wait.
-      // Actually we have '-loop 1 -i input' so we can't just use array index easily.
-      // Better way: inputs array only has '-i' followed by filename. Let's count '-i'.
+      
+      // Add logo as a looped input to match total duration
+      inputs.push('-loop', '1', '-t', projectState.totalDuration.toString(), '-i', 'logo.png');
+      
       let totalInputs = inputs.filter(item => item === '-i').length;
       const actualLogoIndex = totalInputs - 1; // 0-based index for FFmpeg input
 
@@ -1282,21 +1282,24 @@ async function performVideoExport(resolution) {
       const sizePct = projectState.logo.size || 15;
       const marginPct = projectState.logo.margin || 5;
 
-      // Calculate width and margin based on main video width (W) and height (H)
-      const scaleStr = `scale=iw*(${sizePct}/100):-1`; // scale based on original image size... wait. We want size relative to video width.
-      // Better: scale=(W*${sizePct}/100):-1
+      // Calculate width and margin based on selected resolution string (e.g. "1920x1080")
+      const [resW, resH] = resolution.split('x').map(Number);
+      
+      const logoW = Math.round(resW * (sizePct / 100));
+      const marginX = Math.round(resW * (marginPct / 100));
+      const marginY = Math.round(resH * (marginPct / 100));
       
       let xPos = "0";
       let yPos = "0";
       
-      if (pos.includes('left')) xPos = `W*(${marginPct}/100)`;
-      if (pos.includes('right')) xPos = `W-w-W*(${marginPct}/100)`;
+      if (pos.includes('left')) xPos = `${marginX}`;
+      if (pos.includes('right')) xPos = `W-w-${marginX}`;
       
-      if (pos.includes('top')) yPos = `H*(${marginPct}/100)`;
-      if (pos.includes('bottom')) yPos = `H-h-H*(${marginPct}/100)`;
+      if (pos.includes('top')) yPos = `${marginY}`;
+      if (pos.includes('bottom')) yPos = `H-h-${marginY}`;
 
-      // Scale logo and then overlay
-      concatFilter += `[${actualLogoIndex}:v]scale=(main_w*${sizePct}/100):-1[logo];[concatv][logo]overlay=x=${xPos}:y=${yPos}[outv]`;
+      // Scale logo to absolute width, ensure it has alpha channel, then overlay with shortest=1
+      concatFilter += `[${actualLogoIndex}:v]scale=${logoW}:-1,format=rgba[logo];[concatv][logo]overlay=x=${xPos}:y=${yPos}:shortest=1[outv]`;
     } else {
       concatFilter += `${concatStreamInputs}concat=n=${scenesWithMedia.length}:v=1:a=0[outv]`;
     }
