@@ -23,6 +23,7 @@ let projectState = {
       id: generateId(),
       text: "Dose control matters. Limit consumption to one ounce daily...",
       voice: "aura-asteria-en", // Deepgram voice ID
+      audioUrl: null, // to persist generated TTS
       media: null, // { type: 'video', url: '...', thumbnail: '...', duration: 5 }
       overlays: [], // Text overlays { id, type, text, fontSize, color, x, y, fontWeight }
       duration: 5.0, // estimated duration in seconds
@@ -123,7 +124,8 @@ function bindEvents() {
       projectState.title = "Başlıksız Proje";
       document.getElementById('projectTitle').value = projectState.title;
       projectState.scenes = [{
-        id: generateId(), text: "", voice: "speech-01", media: null, overlays: [], duration: 5.0, autoSearched: false
+        id: generateId(), text: "", voice: "aura-asteria-en",
+      audioUrl: null, media: null, overlays: [], duration: 5.0, autoSearched: false
       }];
       projectState.activeSceneId = projectState.scenes[0].id;
       projectState.currentTime = 0;
@@ -301,7 +303,8 @@ function bindEvents() {
     const newScene = {
       id: generateId(),
       text: "",
-      voice: "speech-01",
+      voice: "aura-asteria-en",
+      audioUrl: null,
       media: null,
       overlays: [],
       duration: 3.0,
@@ -705,7 +708,7 @@ function renderScenes() {
              Seslendir
            </button>
         </div>
-        <audio id="audio-${scene.id}" style="display:none;"></audio>
+        <audio id="audio-${scene.id}" style="display:none;" ${scene.audioUrl ? 'src="' + scene.audioUrl + '"' : ''}></audio>
       </div>
     `;
 
@@ -887,6 +890,7 @@ async function generateTTS(sceneId, isBatch = false) {
         throw new Error("Audio element not found");
       }
       audioEl.src = audioUrl;
+      scene.audioUrl = audioUrl; // Save to state so it doesn't get lost on render!
       
       // Load and update duration
       audioEl.onloadedmetadata = () => {
