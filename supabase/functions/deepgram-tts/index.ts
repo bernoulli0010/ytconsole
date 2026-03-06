@@ -1,10 +1,13 @@
+// Setup type definitions for built-in Supabase Runtime APIs
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { encodeBase64 } from "jsr:@std/encoding/base64"
 
+console.log("Deepgram Edge Function is loaded and ready");
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS'
 }
 
 Deno.serve(async (req) => {
@@ -13,24 +16,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    let reqBody;
-    try {
-      reqBody = await req.json();
-    } catch (e) {
-      console.error("Failed to parse JSON body", e);
-      return new Response(JSON.stringify({ error: "Invalid JSON request body" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200
-      });
-    }
-    
-    const text = reqBody.text
-    const voice_id = reqBody.voice_id || "aura-asteria-en"
+    const { text, voice_id = "aura-asteria-en" } = await req.json()
     
     if (!text) {
       return new Response(JSON.stringify({ error: "Text is required" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200
+        status: 400
       })
     }
 
@@ -47,10 +38,9 @@ Deno.serve(async (req) => {
 
     if (!response.ok) {
        const errText = await response.text();
-       console.error("Deepgram Error:", response.status, errText);
-       return new Response(JSON.stringify({ error: `Deepgram API Hatası: ${errText}` }), {
+       return new Response(JSON.stringify({ error: `Deepgram API Error (${response.status}): ${errText}` }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200
+        status: 400
       })
     }
 
@@ -59,13 +49,12 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ audio: base64Audio }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (error) {
-    console.error("Edge Function Error:", error);
-    return new Response(JSON.stringify({ error: error.message || "Bilinmeyen Sunucu Hatası" }), {
+    return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200
+      status: 400,
     })
   }
 })
