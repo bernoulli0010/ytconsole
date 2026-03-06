@@ -1255,6 +1255,7 @@ async function performVideoExport(resolution) {
 
   const statusEl = document.getElementById('exportStatusText');
   const progressEl = document.getElementById('exportProgressBar');
+  const ffmpegLogs = []; // Capture all FFmpeg logs
 
   // Check if we have media to export. We MUST filter out scenes without media from the entire export logic,
   // AND recalculate the total export duration based ONLY on the scenes we are actually exporting.
@@ -1322,6 +1323,7 @@ async function performVideoExport(resolution) {
 
   ffmpeg.on('log', ({ message }) => {
     console.log('[FFmpeg]', message);
+    ffmpegLogs.push(message); // Store logs
     // Add error details
     if (message.toLowerCase().includes('error') || message.toLowerCase().includes('failed')) {
       statusEl.textContent = "FFmpeg Hatası: " + message.substring(0, 100);
@@ -1517,7 +1519,8 @@ async function performVideoExport(resolution) {
 
       // Video filters (scale, pad, text overlays)
       const resColon = resolution.replace('x', ':');
-      concatFilter += `[${i}:v]fps=60,format=yuv420p,scale=${resColon}:force_original_aspect_ratio=decrease,pad=${resColon}:(ow-iw)/2:(oh-ih)/2,setdar=16/9${textFilters},trim=duration=${scene.duration},setpts=PTS-STARTPTS[v${i}];`;
+      const textFilterPart = textFilters ? textFilters + ',' : '';
+      concatFilter += `[${i}:v]fps=60,format=yuv420p,scale=${resColon}:force_original_aspect_ratio=decrease,pad=${resColon}:(ow-iw)/2:(oh-ih)/2,setdar=16/9${textFilterPart}trim=duration=${scene.duration},setpts=PTS-STARTPTS[v${i}];`;
       
       // Audio filters
       // Use standard resample layout for all inputs so they perfectly match
@@ -1654,6 +1657,7 @@ async function performVideoExport(resolution) {
   } catch (err) {
     console.error("=== FFmpeg Export Error ===");
     console.error("Error message:", err.message);
+    console.error("FFmpeg logs (last 20):", ffmpegLogs.slice(-20));
     console.error("Error stack:", err.stack);
     console.error("projectState.scenes:", JSON.stringify(projectState.scenes.map(s => ({id: s.id, hasMedia: !!s.media, mediaType: s.media?.type, duration: s.duration, hasAudioUrl: !!s.audioUrl}))));
     alert("Video oluşturulurken bir hata oluştu: " + err.message + "\n\nLütfen tarayıcı konsolunu (F12) açarak detaylı hata bilgilerini kontrol edin.");
