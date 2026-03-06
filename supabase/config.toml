@@ -382,3 +382,18 @@ s3_region = "env(S3_REGION)"
 s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
+
+[functions.fetch-all-competitors]
+verify_jwt = false
+
+[functions.add-competitor]
+verify_jwt = false
+
+[functions.remove-competitor]
+verify_jwt = false
+
+[functions.top-performing-videos]
+verify_jwt = false
+
+[functions.search-channel]
+verify_jwt = false
