@@ -751,7 +751,12 @@
         initSupabase();
       }
 
-      const { data: { session } } = await supabaseClient.auth.getSession();
+      let { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        const { data: refreshData } = await supabaseClient.auth.refreshSession();
+        session = refreshData.session;
+      }
+      
       if (!session) {
         toast('Lütfen giriş yapın');
         return;
@@ -810,7 +815,12 @@
         initSupabase();
       }
 
-      const { data: { session } } = await supabaseClient.auth.getSession();
+      let { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        const { data: refreshData } = await supabaseClient.auth.refreshSession();
+        session = refreshData.session;
+      }
+      
       if (!session) {
         toast('Lütfen giriş yapın');
         return;
