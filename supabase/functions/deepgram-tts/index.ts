@@ -16,7 +16,7 @@ serve(async (req) => {
     
     if (!text) throw new Error("Text is required")
 
-    const DEEPGRAM_API_KEY = Deno.env.get("DEEPGRAM_API_KEY") || "7f10926018d442da8007be8bc200c1f7bbbf3f62";
+    const DEEPGRAM_API_KEY = Deno.env.get("DEEPGRAM_API_KEY") || "14da2a8493057a4bc9fe2ef8ee856d76031c8a2d";
     
     if (!DEEPGRAM_API_KEY) throw new Error("API Key is missing");
 
