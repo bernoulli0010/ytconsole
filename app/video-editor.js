@@ -1443,7 +1443,7 @@ async function performVideoExport(resolution) {
          concatFilter += `[${audioIndices[i]}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${scene.duration},asetpts=PTS-STARTPTS[a${i}];`;
       } else {
          // anullsrc generates silence. Then we format it explicitly just like the rest
-         concatFilter += `anullsrc=r=44100:cl=stereo:d=${scene.duration},asetpts=PTS-STARTPTS[a${i}];`;
+         concatFilter += `anullsrc=r=44100:cl=stereo:d=${scene.duration},aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS-STARTPTS[a${i}];`;
       }
     }
 
@@ -1485,7 +1485,7 @@ async function performVideoExport(resolution) {
     if (bgMusicIndex !== -1) {
       // Loop background music if it is shorter than the video, then trim to total video duration, format and mix
       // We removed stream_loop from inputs.push because it can be buggy with WebAssembly. Instead, we use aloop filter.
-      concatFilter += `[${bgMusicIndex}:a]aloop=loop=-1:size=2e+09,aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.2,atrim=0:${projectState.totalDuration},asetpts=PTS-STARTPTS[bga];`;
+      concatFilter += `[${bgMusicIndex}:a]aloop=loop=-1:size=2e+09,aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.15,atrim=0:${projectState.totalDuration},asetpts=PTS-STARTPTS[bga];`;
       // amix mixes the main audio (abase) and background audio (bga). duration=first ensures the output ends when the video audio ends.
       concatFilter += `[abase][bga]amix=inputs=2:duration=first:dropout_transition=2[amixed];`;
       outa = '[amixed]';
@@ -1506,6 +1506,7 @@ async function performVideoExport(resolution) {
     ];
 
     console.log("Running FFmpeg with args:", args);
+    console.log("FULL CONCAT FILTER:", concatFilter);
     const code = await ffmpeg.exec(args);
     
     if (code !== 0) {
