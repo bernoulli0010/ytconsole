@@ -9,9 +9,68 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || 'https://bjcsbuvjumaigvsjphor.supabase.co'
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const APIFY_API_KEY = Deno.env.get('APIFY_API_KEY')!
+const DEFAULT_REFRESH_WINDOW_HOURS = 12
 
-// Fetch channel data using Apify
-async function fetchChannelWithApify(channelUrl: string, channelId: string): Promise<{
+function toInt(val: unknown): number {
+  const cleaned = String(val ?? "0").replace(/[^0-9-]/g, "");
+  const parsed = Number.parseInt(cleaned || "0", 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function safeDate(val: unknown): string | null {
+  if (!val) return null;
+  const d = new Date(String(val));
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function roundMetric(value: number): number {
+  return Number(value.toFixed(4));
+}
+
+function enrichVideoMetrics(videos: Array<{
+  videoId: string;
+  title: string;
+  thumbnailUrl: string;
+  views: number;
+  likes: number;
+  comments: number;
+  publishedAt: string | null;
+}>) {
+  if (videos.length === 0) return [];
+
+  const averageViews = videos.reduce((sum, video) => sum + (video.views || 0), 0) / videos.length;
+  const safeAverageViews = Math.max(averageViews, 1);
+
+  return videos.map((video) => {
+    const publishedAtIso = safeDate(video.publishedAt);
+    let publishedHoursAgo: number | null = null;
+
+    if (publishedAtIso) {
+      const hours = (Date.now() - new Date(publishedAtIso).getTime()) / 3600000;
+      if (Number.isFinite(hours) && hours > 0) {
+        publishedHoursAgo = roundMetric(Math.max(hours, 1));
+      }
+    }
+
+    const vph = publishedHoursAgo ? roundMetric(video.views / publishedHoursAgo) : 0;
+    const engagementRate = video.views > 0
+      ? roundMetric(((video.likes + video.comments) / video.views) * 100)
+      : 0;
+    const outlierScore = roundMetric((video.views / safeAverageViews) * 100);
+
+    return {
+      ...video,
+      publishedAt: publishedAtIso,
+      publishedHoursAgo,
+      vph,
+      engagementRate,
+      outlierScore
+    };
+  });
+}
+
+async function fetchChannelWithApify(channelUrl: string): Promise<{
   channelName: string;
   thumbnailUrl: string;
   subscribers: number;
@@ -25,16 +84,18 @@ async function fetchChannelWithApify(channelUrl: string, channelId: string): Pro
     views: number;
     likes: number;
     comments: number;
-    publishedAt: string;
+    publishedAt: string | null;
+    publishedHoursAgo: number | null;
+    vph: number;
+    engagementRate: number;
+    outlierScore: number;
   }[];
 } | null> {
   const actorId = "streamers~youtube-channel-scraper";
-  
+
   const runResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs?token=${APIFY_API_KEY}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       startUrls: [{ url: channelUrl }],
       maxResults: 10,
@@ -49,66 +110,66 @@ async function fetchChannelWithApify(channelUrl: string, channelId: string): Pro
 
   const runData = await runResponse.json();
   const runId = runData.data.id;
-  
-  // Wait for completion (max 60 seconds)
+
   let attempts = 0;
   while (attempts < 30) {
-    await new Promise(r => setTimeout(r, 2000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     const statusResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs/${runId}?token=${APIFY_API_KEY}`);
     const statusData = await statusResponse.json();
-    
-    if (statusData.data.status === 'SUCCEEDED') {
-      break;
-    } else if (statusData.data.status === 'FAILED' || statusData.data.status === 'ABORTED') {
+
+    if (statusData.data.status === 'SUCCEEDED') break;
+    if (statusData.data.status === 'FAILED' || statusData.data.status === 'ABORTED') {
       console.error('Apify run failed:', statusData.data.status);
       return null;
     }
-    
+
     attempts++;
   }
 
-  // Get dataset items
   const datasetId = runData.data.defaultDatasetId;
   const itemsResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_KEY}`);
-  
   if (!itemsResponse.ok) {
     console.error('Apify dataset error:', await itemsResponse.text());
     return null;
   }
 
   const items = await itemsResponse.json();
-  
-  if (!items || items.length === 0) {
-    return null;
-  }
+  if (!items || items.length === 0) return null;
 
   const channel = items[0];
-  
-  const videos = (channel.latestVideos || []).map((v: any) => ({
+  const rawVideos = (channel.latestVideos || []).map((v: any) => ({
     videoId: v.id || v.videoId || '',
     title: v.title || '',
     thumbnailUrl: v.thumbnailUrl || v.thumbnail || '',
-    views: parseInt(v.viewCount || v.views || '0', 10),
-    likes: parseInt(v.likeCount || v.likes || '0', 10),
-    comments: parseInt(v.commentCount || v.comments || '0', 10),
+    views: toInt(v.viewCount || v.views || '0'),
+    likes: toInt(v.likeCount || v.likes || '0'),
+    comments: toInt(v.commentCount || v.comments || '0'),
     publishedAt: v.publishedAt || v.uploadDate || ''
-  }));
+  })).filter((v: { videoId: string }) => Boolean(v.videoId));
+
+  const videos = enrichVideoMetrics(rawVideos);
 
   return {
-    channelId: channel.channelId || channel.id || '',
     channelName: channel.title || channel.channelTitle || 'Unknown Channel',
     thumbnailUrl: channel.avatarUrl || channel.thumbnailUrl || '',
-    subscribers: parseInt(channel.subscriberCount || channel.subscribers || '0', 10),
-    totalViews: parseInt(channel.totalViews || channel.views || '0', 10),
-    videoCount: parseInt(channel.videoCount || channel.videos || '0', 10),
+    subscribers: toInt(channel.subscriberCount || channel.subscribers || '0'),
+    totalViews: toInt(channel.totalViews || channel.views || '0'),
+    videoCount: toInt(channel.videoCount || channel.videos || '0'),
     description: channel.description || '',
     videos
   };
 }
 
+function isStale(lastFetched: string | null, refreshWindowHours: number): boolean {
+  if (!lastFetched) return true;
+  const last = new Date(lastFetched);
+  if (Number.isNaN(last.getTime())) return true;
+  const diffHours = (Date.now() - last.getTime()) / 3600000;
+  return diffHours >= refreshWindowHours;
+}
+
 serve(async (req) => {
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -134,7 +195,23 @@ serve(async (req) => {
       );
     }
 
-    // Get all competitor channels for user
+    let body: any = {};
+    if (req.method === 'POST') {
+      try {
+        body = await req.json();
+      } catch {
+        body = {};
+      }
+    }
+
+    const refreshRequested = body?.refresh === true;
+    const refreshWindowHours = Number.isFinite(Number(body?.refresh_window_hours))
+      ? Math.max(1, Number(body.refresh_window_hours))
+      : DEFAULT_REFRESH_WINDOW_HOURS;
+    const requestedChannelIds: string[] = Array.isArray(body?.channel_ids)
+      ? body.channel_ids.filter((id: unknown) => typeof id === 'string')
+      : [];
+
     const { data: channels, error: fetchError } = await supabase
       .from('competitor_channels')
       .select('*')
@@ -151,26 +228,27 @@ serve(async (req) => {
 
     if (!channels || channels.length === 0) {
       return new Response(
-        JSON.stringify({
-          success: true,
-          competitors: [],
-          message: 'Takip edilen rakip bulunmuyor'
-        }),
+        JSON.stringify({ success: true, competitors: [], message: 'Takip edilen rakip bulunmuyor' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Refresh each channel's data
-    const updatedCompetitors = [];
-    
-    for (let i = 0; i < channels.length; i++) {
-      const channel = channels[i];
-      const channelUrl = channel.channel_url || `https://www.youtube.com/channel/${channel.channel_id}`;
-      
-      // Update channel stats
-      const channelData = await fetchChannelWithApify(channelUrl, channel.channel_id);
-      
-      if (channelData) {
+    const refreshCandidates = requestedChannelIds.length > 0
+      ? channels.filter((channel) => requestedChannelIds.includes(channel.id))
+      : channels;
+
+    let refreshedCount = 0;
+    if (refreshRequested) {
+      for (const channel of refreshCandidates) {
+        if (!isStale(channel.last_fetched, refreshWindowHours)) {
+          continue;
+        }
+
+        const channelUrl = channel.channel_url || `https://www.youtube.com/channel/${channel.channel_id}`;
+        const channelData = await fetchChannelWithApify(channelUrl);
+
+        if (!channelData) continue;
+
         await supabase
           .from('competitor_channels')
           .update({
@@ -184,54 +262,77 @@ serve(async (req) => {
           })
           .eq('id', channel.id);
 
-        // Save videos to database
         if (channelData.videos.length > 0) {
-          const videoRecords = channelData.videos.map(v => ({
+          const videoRecords = channelData.videos.map((video) => ({
             channel_id: channel.id,
-            video_id: v.videoId,
-            title: v.title,
-            thumbnail_url: v.thumbnailUrl,
-            views: v.views,
-            likes: v.likes,
-            comments: v.comments,
-            published_at: v.publishedAt || null
+            video_id: video.videoId,
+            title: video.title,
+            thumbnail_url: video.thumbnailUrl,
+            views: video.views,
+            likes: video.likes,
+            comments: video.comments,
+            published_at: video.publishedAt,
+            published_hours_ago: video.publishedHoursAgo,
+            vph: video.vph,
+            outlier_score: video.outlierScore,
+            engagement_rate: video.engagementRate,
+            last_fetched: new Date().toISOString()
           }));
 
           await supabase
             .from('competitor_videos')
             .upsert(videoRecords, { onConflict: 'channel_id,video_id' });
         }
+
+        refreshedCount++;
       }
-      
-      // Get updated channel with videos
-      const { data: updatedChannel } = await supabase
-        .from('competitor_channels')
-        .select('*')
-        .eq('id', channel.id)
-        .single();
-      
-      const { data: updatedVideos } = await supabase
-        .from('competitor_videos')
-        .select('*')
-        .eq('channel_id', channel.id)
-        .order('published_at', { ascending: false })
-        .limit(10);
-      
-      updatedCompetitors.push({
-        ...updatedChannel,
-        videos: updatedVideos || []
-      });
     }
+
+    const { data: finalChannels, error: finalChannelsError } = await supabase
+      .from('competitor_channels')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (finalChannelsError || !finalChannels) {
+      return new Response(
+        JSON.stringify({ error: 'Kanallar güncel alınamadı' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const channelIds = finalChannels.map((channel) => channel.id);
+    const { data: videos } = await supabase
+      .from('competitor_videos')
+      .select('*')
+      .in('channel_id', channelIds)
+      .order('published_at', { ascending: false });
+
+    const videosByChannel = new Map<string, any[]>();
+    for (const video of (videos || [])) {
+      if (!videosByChannel.has(video.channel_id)) {
+        videosByChannel.set(video.channel_id, []);
+      }
+      const channelVideos = videosByChannel.get(video.channel_id)!;
+      if (channelVideos.length < 10) {
+        channelVideos.push(video);
+      }
+    }
+
+    const competitors = finalChannels.map((channel) => ({
+      ...channel,
+      videos: videosByChannel.get(channel.id) || []
+    }));
 
     return new Response(
       JSON.stringify({
         success: true,
-        competitors: updatedCompetitors,
-        updated_count: updatedCompetitors.length
+        competitors,
+        refreshed_count: refreshedCount,
+        refresh_requested: refreshRequested
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
     console.error("fetch-all-competitors error:", error);
     return new Response(

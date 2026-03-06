@@ -15,6 +15,65 @@ function safeStr(val: unknown): string {
   return "";
 }
 
+function toInt(val: unknown): number {
+  const cleaned = String(val ?? "0").replace(/[^0-9-]/g, "");
+  const parsed = Number.parseInt(cleaned || "0", 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function safeDate(val: unknown): string | null {
+  if (!val) return null;
+  const d = new Date(String(val));
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function roundMetric(value: number): number {
+  return Number(value.toFixed(4));
+}
+
+function enrichVideoMetrics(videos: Array<{
+  videoId: string;
+  title: string;
+  thumbnailUrl: string;
+  views: number;
+  likes: number;
+  comments: number;
+  publishedAt: string | null;
+}>) {
+  if (videos.length === 0) return [];
+
+  const averageViews = videos.reduce((sum, video) => sum + (video.views || 0), 0) / videos.length;
+  const safeAverageViews = Math.max(averageViews, 1);
+
+  return videos.map((video) => {
+    const publishedAtIso = safeDate(video.publishedAt);
+    let publishedHoursAgo: number | null = null;
+
+    if (publishedAtIso) {
+      const hours = (Date.now() - new Date(publishedAtIso).getTime()) / 3600000;
+      if (Number.isFinite(hours) && hours > 0) {
+        publishedHoursAgo = roundMetric(Math.max(hours, 1));
+      }
+    }
+
+    const vph = publishedHoursAgo ? roundMetric(video.views / publishedHoursAgo) : 0;
+    const engagementRate = video.views > 0
+      ? roundMetric(((video.likes + video.comments) / video.views) * 100)
+      : 0;
+    const outlierScore = roundMetric((video.views / safeAverageViews) * 100);
+
+    return {
+      ...video,
+      publishedAt: publishedAtIso,
+      publishedHoursAgo,
+      vph,
+      engagementRate,
+      outlierScore
+    };
+  });
+}
+
 // Get channel URL in correct format for Apify
 function getChannelUrl(input: string): string {
   const trimmed = input.trim();
@@ -50,7 +109,11 @@ async function fetchChannelWithApify(channelUrl: string): Promise<{
     views: number;
     likes: number;
     comments: number;
-    publishedAt: string;
+    publishedAt: string | null;
+    publishedHoursAgo: number | null;
+    vph: number;
+    engagementRate: number;
+    outlierScore: number;
   }[];
 } | null> {
   const actorId = "streamers~youtube-channel-scraper";
@@ -110,23 +173,25 @@ async function fetchChannelWithApify(channelUrl: string): Promise<{
 
   const channel = items[0];
   
-  const videos = (channel.latestVideos || []).map((v: any) => ({
+  const rawVideos = (channel.latestVideos || []).map((v: any) => ({
     videoId: v.id || v.videoId || '',
     title: v.title || '',
     thumbnailUrl: v.thumbnailUrl || v.thumbnail || '',
-    views: parseInt(v.viewCount || v.views || '0', 10),
-    likes: parseInt(v.likeCount || v.likes || '0', 10),
-    comments: parseInt(v.commentCount || v.comments || '0', 10),
+    views: toInt(v.viewCount || v.views || '0'),
+    likes: toInt(v.likeCount || v.likes || '0'),
+    comments: toInt(v.commentCount || v.comments || '0'),
     publishedAt: v.publishedAt || v.uploadDate || ''
-  }));
+  })).filter((v: { videoId: string }) => Boolean(v.videoId));
+
+  const videos = enrichVideoMetrics(rawVideos);
 
   return {
     channelId: channel.channelId || channel.id || '',
     channelName: channel.title || channel.channelTitle || 'Unknown Channel',
     thumbnailUrl: channel.avatarUrl || channel.thumbnailUrl || '',
-    subscribers: parseInt(channel.subscriberCount || channel.subscribers || '0', 10),
-    totalViews: parseInt(channel.totalViews || channel.views || '0', 10),
-    videoCount: parseInt(channel.videoCount || channel.videos || '0', 10),
+    subscribers: toInt(channel.subscriberCount || channel.subscribers || '0'),
+    totalViews: toInt(channel.totalViews || channel.views || '0'),
+    videoCount: toInt(channel.videoCount || channel.videos || '0'),
     description: channel.description || '',
     videos
   };
@@ -267,7 +332,11 @@ serve(async (req) => {
         views: v.views,
         likes: v.likes,
         comments: v.comments,
-        published_at: v.publishedAt || null
+        published_at: v.publishedAt,
+        published_hours_ago: v.publishedHoursAgo,
+        vph: v.vph,
+        outlier_score: v.outlierScore,
+        engagement_rate: v.engagementRate
       }));
 
       await supabase
