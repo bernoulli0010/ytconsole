@@ -22,7 +22,7 @@ let projectState = {
     {
       id: generateId(),
       text: "Dose control matters. Limit consumption to one ounce daily...",
-      voice: "speech-01", // Minimax voice ID
+      voice: "aura-asteria-en", // Deepgram voice ID
       media: null, // { type: 'video', url: '...', thumbnail: '...', duration: 5 }
       overlays: [], // Text overlays { id, type, text, fontSize, color, x, y, fontWeight }
       duration: 5.0, // estimated duration in seconds
@@ -741,11 +741,18 @@ const handleTextChange = debounce((e) => {
 }, 1000); // 1 second debounce
 
 // -- Voice & TTS Management --
-const MINIMAX_VOICES = [
-  { id: "male-qn-qingse", label: "Qingse (Male)", gender: "Male" },
-  { id: "female-shaonv", label: "Shaonv (Female)", gender: "Female" },
-  { id: "speech-01", label: "Speech-01", gender: "Unknown" },
-  { id: "speech-02", label: "Speech-02", gender: "Unknown" }
+const TTS_VOICES = [
+  { id: "aura-asteria-en", label: "Asteria", gender: "Female" },
+  { id: "aura-luna-en", label: "Luna", gender: "Female" },
+  { id: "aura-stella-en", label: "Stella", gender: "Female" },
+  { id: "aura-hera-en", label: "Hera", gender: "Female" },
+  { id: "aura-orion-en", label: "Orion", gender: "Male" },
+  { id: "aura-arcas-en", label: "Arcas", gender: "Male" },
+  { id: "aura-perseus-en", label: "Perseus", gender: "Male" },
+  { id: "aura-angus-en", label: "Angus", gender: "Male" },
+  { id: "aura-orpheus-en", label: "Orpheus", gender: "Male" },
+  { id: "aura-helios-en", label: "Helios", gender: "Male" },
+  { id: "aura-zeus-en", label: "Zeus", gender: "Male" }
 ];
 
 function openVoiceSelector(sceneId) {
@@ -766,7 +773,7 @@ function openVoiceSelector(sceneId) {
     modal.style.zIndex = '9999';
     
     let optionsHtml = '';
-    MINIMAX_VOICES.forEach(voice => {
+    TTS_VOICES.forEach(voice => {
       optionsHtml += `
         <div class="voice-option" onclick="selectVoice('${voice.id}')" style="padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
           <span style="font-weight: 600; color: var(--text);">${voice.label}</span>
@@ -831,7 +838,7 @@ async function generateTTS(sceneId) {
     
     console.log("Calling TTS function with text:", scene.text.substring(0, 50) + "...");
     
-    const { data, error } = await supabaseClient.functions.invoke('minimax-tts', {
+    const { data, error } = await supabaseClient.functions.invoke('deepgram-tts', {
       body: { text: scene.text, voice_id: scene.voice }
     });
     
@@ -840,18 +847,8 @@ async function generateTTS(sceneId) {
     if (error) throw error;
     if (data && data.error) throw new Error(data.error);
     
-    if (data && data.data && data.data.audio) {
-      // Audio comes back as hex or base64 based on API. Usually base64 or hex.
-      // MiniMax T2A V2 returns hex string in `data.audio`
-      const hexString = data.data.audio;
-      
-      // Convert Hex to Base64
-      let raw = '';
-      for (let i = 0; i < hexString.length; i += 2) {
-        raw += String.fromCharCode(parseInt(hexString.substr(i, 2), 16));
-      }
-      const b64 = btoa(raw);
-      const audioUrl = "data:audio/mp3;base64," + b64;
+    if (data && data.audio) {
+      const audioUrl = "data:audio/mp3;base64," + data.audio;
       
       const audioEl = document.getElementById(`audio-${scene.id}`);
       if (!audioEl) {
