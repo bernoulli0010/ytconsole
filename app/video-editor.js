@@ -1347,15 +1347,63 @@ async function performVideoExport(resolution) {
       classWorkerURL: await toBlobURL(`${ffmpegURL}/814.ffmpeg.js`, 'text/javascript')
     });
 
-    statusEl.textContent = "Font yükleniyor...";
+    statusEl.textContent = "Fontlar yükleniyor...";
     let hasFont = false;
+    let fontMap = {}; // { 'Arial_normal': 'font_Arial_normal.ttf' }
+
     try {
-      // Roboto font
-      const fontData = await fetchFile('https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Regular.ttf');
-      await ffmpeg.writeFile('font.ttf', fontData);
+      // Default font for subtitles
+      const defaultFontData = await fetchFile('https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Bold.ttf');
+      await ffmpeg.writeFile('font.ttf', defaultFontData);
       hasFont = true;
+
+      // Extract unique fonts used in overlays
+      const uniqueFonts = new Set();
+      scenesWithMedia.forEach(scene => {
+        if (scene.overlays && scene.overlays.length > 0) {
+          scene.overlays.forEach(ov => {
+             const family = ov.fontFamily || 'Arial';
+             const weight = ov.fontWeight || 'normal';
+             uniqueFonts.add(`${family}_${weight}`);
+          });
+        }
+      });
+
+      // Helper to map UI fonts to actual TTF URLs (Using Google Fonts where possible)
+      const getFontUrl = (family, weight) => {
+        let isBold = weight === 'bold' || weight === '600' || weight === '700' || weight === '800';
+        let baseUrl = 'https://raw.githubusercontent.com/googlefonts/';
+        
+        switch(family) {
+          case 'Georgia':
+            return isBold ? `${baseUrl}noto-fonts/main/hinted/ttf/NotoSerif/NotoSerif-Bold.ttf` : `${baseUrl}noto-fonts/main/hinted/ttf/NotoSerif/NotoSerif-Regular.ttf`;
+          case 'Courier New':
+            return isBold ? `${baseUrl}roboto/main/src/hinted/RobotoMono-Bold.ttf` : `${baseUrl}roboto/main/src/hinted/RobotoMono-Regular.ttf`;
+          case 'Impact':
+            return `${baseUrl}roboto/main/src/hinted/Roboto-Black.ttf`; // Impact alternative
+          case 'Arial':
+          default:
+            return isBold ? `${baseUrl}roboto/main/src/hinted/Roboto-Bold.ttf` : `${baseUrl}roboto/main/src/hinted/Roboto-Regular.ttf`;
+        }
+      };
+
+      for (const fontKey of uniqueFonts) {
+         const [family, weight] = fontKey.split('_');
+         const url = getFontUrl(family, weight);
+         const fileName = `font_${family.replace(/\s+/g, '')}_${weight}.ttf`;
+         try {
+           const fData = await fetchFile(url);
+           await ffmpeg.writeFile(fileName, fData);
+           fontMap[fontKey] = fileName;
+           console.log(`[Export] Loaded font ${fontKey} -> ${fileName}`);
+         } catch(e) {
+           console.warn(`[Export] Failed to load font ${fontKey}`, e);
+           fontMap[fontKey] = 'font.ttf'; // Fallback
+         }
+      }
+
     } catch(e) {
-      console.warn("Font fetch failed, text overlays might not be exported.", e);
+      console.warn("Font fetch failed, text overlays might not be exported correctly.", e);
     }
 
     // 1. Download and Write Files to FFmpeg FS
@@ -1477,22 +1525,22 @@ async function performVideoExport(resolution) {
            let subProps = `fontfile=font.ttf:text='${safeText}':fontsize=(h*0.04):x=(w-text_w)/2:y=(h-text_h)-(h*0.1)`;
            
            switch(projectState.subtitlePreset) {
-             case 'default':
-               subProps += `:fontcolor=white:box=1:boxcolor=black@0.6:boxborderw=10`; break;
-             case 'white-box':
-               subProps += `:fontcolor=black:box=1:boxcolor=white:boxborderw=10`; break;
-             case 'black-box':
-               subProps += `:fontcolor=white:box=1:boxcolor=black:boxborderw=10`; break;
-             case 'stroke':
-               subProps += `:fontcolor=white:borderw=3:bordercolor=black`; break;
-             case 'blue-pill':
-               subProps += `:fontcolor=white:box=1:boxcolor=blue:boxborderw=20`; break;
-             case 'comic-yellow':
-               subProps += `:fontcolor=yellow:borderw=4:bordercolor=black`; break;
-             case 'shadow':
-               subProps += `:fontcolor=white:shadowx=3:shadowy=3:shadowcolor=black@0.9`; break;
-             case 'red-box':
-               subProps += `:fontcolor=white:box=1:boxcolor=red:boxborderw=10`; break;
+             case 'classic-dark':
+               subProps += `:fontcolor=white:box=1:boxcolor=black@0.65:boxborderw=8`; break;
+             case 'classic-light':
+               subProps += `:fontcolor=black:box=1:boxcolor=white@0.9:boxborderw=8`; break;
+             case 'neon-blue':
+               subProps += `:fontcolor=0x22d3ee:box=1:boxcolor=0x0f172a:boxborderw=8`; break;
+             case 'neon-pink':
+               subProps += `:fontcolor=0xf472b6:box=1:boxcolor=0x1a0a14:boxborderw=8`; break;
+             case 'comic':
+               subProps += `:fontcolor=0x000000:box=1:boxcolor=0xfde047:boxborderw=4`; break;
+             case 'minimal':
+               subProps += `:fontcolor=white:borderw=1:bordercolor=black`; break;
+             case 'gradient':
+               subProps += `:fontcolor=white:box=1:boxcolor=0xec4899@0.8:boxborderw=8`; break; // Gradient cannot be easily done in simple drawtext box, fallback to solid color
+             case 'solid':
+               subProps += `:fontcolor=black:box=1:boxcolor=white:boxborderw=8:borderw=3:bordercolor=black`; break;
              default:
                subProps += `:fontcolor=white:box=1:boxcolor=black@0.6:boxborderw=10`; break;
            }
@@ -1503,7 +1551,9 @@ async function performVideoExport(resolution) {
         if (scene.overlays && scene.overlays.length > 0) {
         scene.overlays.forEach(ov => {
           let safeText = encodeFFmpegText(ov.text);
-          let drawtextProps = `fontfile=font.ttf:text='${safeText}':fontsize=${ov.fontSize}:x=(w-text_w)*(${ov.x}/100):y=(h-text_h)*(${ov.y}/100)`;
+          const fontKey = `${ov.fontFamily || 'Arial'}_${ov.fontWeight || 'normal'}`;
+          const fontFile = fontMap[fontKey] || 'font.ttf';
+          let drawtextProps = `fontfile=${fontFile}:text='${safeText}':fontsize=${ov.fontSize}:x=(w*(${ov.x}/100))-(text_w/2):y=(h*(${ov.y}/100))-(text_h/2)`;
           if (ov.color) drawtextProps += `:fontcolor=${ov.color.replace('#', '0x')}`; else drawtextProps += `:fontcolor=white`;
           if (ov.bgColor && ov.bgColor !== 'transparent') {
             let safeBgColor = ov.bgColor;
