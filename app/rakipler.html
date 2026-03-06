@@ -559,7 +559,8 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': SUPABASE_KEY
           },
           body: JSON.stringify({})
         });
@@ -754,7 +755,8 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': SUPABASE_KEY
           },
           body: JSON.stringify({ query })
         });
@@ -812,7 +814,8 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': SUPABASE_KEY
           },
           body: JSON.stringify({ channel_id: channelId })
         });
