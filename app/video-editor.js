@@ -1354,7 +1354,7 @@ async function performVideoExport(resolution) {
       try {
         const bgData = await fetchFile(projectState.backgroundMusic.url);
         await ffmpeg.writeFile('bgmusic.mp3', bgData);
-        inputs.push('-stream_loop', '-1', '-i', 'bgmusic.mp3');
+        inputs.push('-i', 'bgmusic.mp3');
         bgMusicIndex = inputs.filter(arg => arg === '-i').length - 1;
       } catch (err) {
         console.warn("Müzik indirilemedi (CORS veya Ağ hatası olabilir), sessiz export ediliyor:", err);
@@ -1470,7 +1470,7 @@ async function performVideoExport(resolution) {
     
     // Apply Background Music
     if (bgMusicIndex !== -1) {
-      concatFilter += `[${bgMusicIndex}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${projectState.totalDuration},asetpts=PTS-STARTPTS,volume=0.2[bga];`;
+      concatFilter += `[${bgMusicIndex}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.2,atrim=0:${projectState.totalDuration},asetpts=PTS-STARTPTS[bga];`;
       concatFilter += `[abase][bga]amix=inputs=2:duration=first:dropout_transition=2[amixed];`;
       outa = '[amixed]';
     }
