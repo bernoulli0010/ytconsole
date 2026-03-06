@@ -708,7 +708,7 @@ function renderScenes() {
              Seslendir
            </button>
         </div>
-        <audio id="audio-${scene.id}" style="display:none;" ${scene.audioUrl ? 'src="' + scene.audioUrl + '"' : ''}></audio>
+         <audio id="audio-${scene.id}" style="display:none;" ${scene.audioUrl ? 'src="' + scene.audioUrl + '"' : ''} preload="metadata"></audio>
       </div>
     `;
 
@@ -1989,8 +1989,8 @@ function renderTimeline() {
     
     // Audio Clip (Generated TTS Voice)
     const audioEl = document.getElementById(`audio-${scene.id}`);
-    console.log(`[Timeline] Scene ${scene.id}: audioEl exists: ${!!audioEl}, src: ${audioEl ? audioEl.src : 'N/A'}, audioUrl in state: ${scene.audioUrl ? 'exists' : 'null'}`);
-    if (audioEl && audioEl.src && audioEl.src.startsWith('data:audio/')) {
+    const hasAudio = scene.audioUrl && scene.audioUrl.startsWith('data:audio/');
+    if (hasAudio) {
       const aClip = document.createElement('div');
       aClip.className = 'timeline-clip clip-audio';
       aClip.style.left = `${currentOffset}px`;
@@ -2037,8 +2037,6 @@ function togglePlay() {
   const player = document.getElementById('mainVideoPlayer');
   const currentSceneAudio = document.getElementById(`audio-${projectState.activeSceneId}`);
   const bgMusicPlayer = document.getElementById('bgMusicPlayer');
-  
-  console.log("[Play] activeSceneId:", projectState.activeSceneId, "audio element:", currentSceneAudio, "src:", currentSceneAudio?.src);
 
   if (projectState.isPlaying) {
     playIcon.style.display = 'none';
