@@ -8,124 +8,16 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || 'https://bjcsbuvjumaigvsjphor.supabase.co'
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const APIFY_API_KEY = Deno.env.get('APIFY_API_KEY')!
 
-function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function parseCount(countStr: string): number {
-  if (!countStr) return 0;
-  
-  const clean = countStr.replace(/[^0-9.,KMB]/g, '').trim();
-  
-  if (clean.includes('M') || clean.includes('m')) {
-    const num = parseFloat(clean.replace(/[Mm]/g, ''));
-    return Math.round(num * 1000000);
-  }
-  
-  if (clean.includes('K') || clean.includes('k')) {
-    const num = parseFloat(clean.replace(/[Kk]/g, ''));
-    return Math.round(num * 1000);
-  }
-  
-  if (clean.includes('B') || clean.includes('b')) {
-    const num = parseFloat(clean.replace(/[Bb]/g, ''));
-    return Math.round(num * 1000000000);
-  }
-  
-  return parseInt(clean.replace(/,/g, ''), 10) || 0;
-}
-
-// Fetch channel statistics from YouTube channel page
-async function fetchChannelStats(channelId: string): Promise<{
+// Fetch channel data using Apify
+async function fetchChannelWithApify(channelUrl: string, channelId: string): Promise<{
   channelName: string;
   thumbnailUrl: string;
   subscribers: number;
   totalViews: number;
   videoCount: number;
-  country: string;
   description: string;
-} | null> {
-  const channelUrl = `https://www.youtube.com/channel/${channelId}`;
-  
-  const response = await fetch(channelUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept-Language': 'en-US,en;q=0.9',
-    }
-  });
-  
-  if (!response.ok) {
-    console.error(`Channel fetch failed: ${response.status}`);
-    return null;
-  }
-  
-  const html = await response.text();
-  
-  // Extract channel name
-  const titleMatch = html.match(/<title>([^<]+)<\/title>/);
-  let channelName = titleMatch ? titleMatch[1].replace(' - YouTube', '').trim() : 'Unknown Channel';
-  
-  // Extract subscriber count
-  let subscribers = 0;
-  const subMatch = html.match(/"subscriberCountText":\s*"([^"]+)"/) || 
-                   html.match(/subscribers[^<]*<span[^>]*>([^<]+)<\/span>/i);
-  if (subMatch) {
-    subscribers = parseCount(subMatch[1]);
-  }
-  
-  // Extract total views
-  let totalViews = 0;
-  const viewsMatch = html.match(/"viewCountText":\s*\{[^}]*"simpleText":"([^"]+)"/) ||
-                     html.match(/view[s]?[^<]*<span[^>]*>([^<]+)<\/span>/i);
-  if (viewsMatch) {
-    totalViews = parseCount(viewsMatch[1]);
-  }
-  
-  // Extract video count
-  let videoCount = 0;
-  const videoMatch = html.match(/"videoCountText":\s*\{[^}]*"simpleText":"([^"]+)"/) ||
-                     html.match(/video[s]?[^<]*<span[^>]*>([^<]+)<\/span>/i);
-  if (videoMatch) {
-    videoCount = parseCount(videoMatch[1]);
-  }
-  
-  // Extract thumbnail
-  let thumbnailUrl = '';
-  const thumbMatch = html.match(/"avatar":\s*\{[^}]*"thumbnails":\s*\[\{"url":"([^"]+)"/);
-  if (thumbMatch) {
-    thumbnailUrl = thumbMatch[1].replace(/\\u0026/g, '&');
-  } else {
-    thumbnailUrl = `https://yt3.ggpht.com/ytc/${channelId}`;
-  }
-  
-  // Extract description
-  let description = '';
-  const descMatch = html.match(/"description":{"simpleText":"([^"]+)"/);
-  if (descMatch) {
-    description = descMatch[1].replace(/\\n/g, '\n').replace(/\\u0026/g, '&');
-  }
-  
-  // Extract country
-  let country = '';
-  const countryMatch = html.match(/"country":"([^"]+)"/);
-  if (countryMatch) {
-    country = countryMatch[1];
-  }
-  
-  return {
-    channelName,
-    thumbnailUrl,
-    subscribers,
-    totalViews,
-    videoCount,
-    country,
-    description
-  };
-}
-
-// Fetch recent videos from RSS feed
-async function fetchChannelVideos(channelId: string): Promise<{
   videos: {
     videoId: string;
     title: string;
@@ -134,97 +26,85 @@ async function fetchChannelVideos(channelId: string): Promise<{
     likes: number;
     comments: number;
     publishedAt: string;
-    duration: string;
-  }[]
-}> {
-  const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+  }[];
+} | null> {
+  const actorId = "streamers~youtube-channel-scraper";
   
-  const response = await fetch(rssUrl, {
+  const runResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs?token=${APIFY_API_KEY}`, {
+    method: 'POST',
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    }
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      startUrls: [{ url: channelUrl }],
+      maxResults: 10,
+      sortVideosBy: "NEWEST"
+    })
   });
-  
-  if (!response.ok) {
-    return { videos: [] };
-  }
-  
-  const xml = await response.text();
-  
-  const videos: {
-    videoId: string;
-    title: string;
-    thumbnailUrl: string;
-    views: number;
-    likes: number;
-    comments: number;
-    publishedAt: string;
-    duration: string;
-  }[] = [];
-  
-  const entryRegex = /<entry[^>]*>([\s\S]*?)<\/entry>/g;
-  let match;
-  
-  while ((match = entryRegex.exec(xml)) !== null && videos.length < 15) {
-    const entry = match[1];
-    
-    const videoTitleMatch = entry.match(/<title>([^<]*)<\/title>/);
-    const videoIdMatch = entry.match(/<yt:videoId>([^<]*)<\/yt:videoId>/);
-    const publishedMatch = entry.match(/<published>([^<]*)<\/published>/);
-    const mediaMatch = entry.match(/<media:thumbnail[^>]*url="([^"]+)"/);
-    
-    if (videoTitleMatch && videoIdMatch) {
-      const videoId = videoIdMatch[1];
-      videos.push({
-        videoId,
-        title: videoTitleMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'),
-        thumbnailUrl: mediaMatch ? mediaMatch[1] : `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
-        views: 0,
-        likes: 0,
-        comments: 0,
-        publishedAt: publishedMatch ? publishedMatch[1] : '',
-        duration: ''
-      });
-    }
-  }
-  
-  return { videos };
-}
 
-// Fetch individual video stats
-async function fetchVideoStats(videoId: string): Promise<{ views: number; likes: number; comments: number }> {
-  const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  
-  try {
-    const response = await fetch(videoUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      }
-    });
-    
-    if (!response.ok) {
-      return { views: 0, likes: 0, comments: 0 };
-    }
-    
-    const html = await response.text();
-    
-    let views = 0;
-    const viewMatch = html.match(/"viewCount":\s*\{[^}]*"simpleText":"([^"]+)"/) ||
-                      html.match(/view[s]?[^<]*<span[^>]*>([^<]+)<\/span>/i);
-    if (viewMatch) {
-      views = parseCount(viewMatch[1]);
-    }
-    
-    let likes = 0;
-    const likeMatch = html.match(/"likeButton":\s*\{[^}]*"simpleText":"([^"]+)"/);
-    if (likeMatch) {
-      likes = parseCount(likeMatch[1]);
-    }
-    
-    return { views, likes, comments: 0 };
-  } catch (e) {
-    return { views: 0, likes: 0, comments: 0 };
+  if (!runResponse.ok) {
+    console.error('Apify run error:', await runResponse.text());
+    return null;
   }
+
+  const runData = await runResponse.json();
+  const runId = runData.data.id;
+  
+  // Wait for completion (max 60 seconds)
+  let attempts = 0;
+  while (attempts < 30) {
+    await new Promise(r => setTimeout(r, 2000));
+    
+    const statusResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs/${runId}?token=${APIFY_API_KEY}`);
+    const statusData = await statusResponse.json();
+    
+    if (statusData.data.status === 'SUCCEEDED') {
+      break;
+    } else if (statusData.data.status === 'FAILED' || statusData.data.status === 'ABORTED') {
+      console.error('Apify run failed:', statusData.data.status);
+      return null;
+    }
+    
+    attempts++;
+  }
+
+  // Get dataset items
+  const datasetId = runData.data.defaultDatasetId;
+  const itemsResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_KEY}`);
+  
+  if (!itemsResponse.ok) {
+    console.error('Apify dataset error:', await itemsResponse.text());
+    return null;
+  }
+
+  const items = await itemsResponse.json();
+  
+  if (!items || items.length === 0) {
+    return null;
+  }
+
+  const channel = items[0];
+  
+  const videos = (channel.latestVideos || []).map((v: any) => ({
+    videoId: v.id || v.videoId || '',
+    title: v.title || '',
+    thumbnailUrl: v.thumbnailUrl || v.thumbnail || '',
+    views: parseInt(v.viewCount || v.views || '0', 10),
+    likes: parseInt(v.likeCount || v.likes || '0', 10),
+    comments: parseInt(v.commentCount || v.comments || '0', 10),
+    publishedAt: v.publishedAt || v.uploadDate || ''
+  }));
+
+  return {
+    channelId: channel.channelId || channel.id || '',
+    channelName: channel.title || channel.channelTitle || 'Unknown Channel',
+    thumbnailUrl: channel.avatarUrl || channel.thumbnailUrl || '',
+    subscribers: parseInt(channel.subscriberCount || channel.subscribers || '0', 10),
+    totalViews: parseInt(channel.totalViews || channel.views || '0', 10),
+    videoCount: parseInt(channel.videoCount || channel.videos || '0', 10),
+    description: channel.description || '',
+    videos
+  };
 }
 
 serve(async (req) => {
@@ -285,64 +165,42 @@ serve(async (req) => {
     
     for (let i = 0; i < channels.length; i++) {
       const channel = channels[i];
+      const channelUrl = channel.channel_url || `https://www.youtube.com/channel/${channel.channel_id}`;
       
       // Update channel stats
-      const channelStats = await fetchChannelStats(channel.channel_id);
+      const channelData = await fetchChannelWithApify(channelUrl, channel.channel_id);
       
-      if (channelStats) {
+      if (channelData) {
         await supabase
           .from('competitor_channels')
           .update({
-            channel_name: channelStats.channelName,
-            thumbnail_url: channelStats.thumbnailUrl,
-            subscribers: channelStats.subscribers,
-            total_views: channelStats.totalViews,
-            video_count: channelStats.videoCount,
-            country: channelStats.country,
-            description: channelStats.description,
+            channel_name: channelData.channelName,
+            thumbnail_url: channelData.thumbnailUrl,
+            subscribers: channelData.subscribers,
+            total_views: channelData.totalViews,
+            video_count: channelData.videoCount,
+            description: channelData.description,
             last_fetched: new Date().toISOString()
           })
           .eq('id', channel.id);
-      }
-      
-      // Update videos
-      const { videos } = await fetchChannelVideos(channel.channel_id);
-      
-      // Fetch stats for first 3 videos only to save time
-      const videosWithStats = [];
-      for (let j = 0; j < Math.min(videos.length, 3); j++) {
-        await delay(300);
-        const stats = await fetchVideoStats(videos[j].videoId);
-        videosWithStats.push({
-          ...videos[j],
-          views: stats.views,
-          likes: stats.likes,
-          comments: stats.comments
-        });
-      }
-      
-      // For remaining videos, use the ones from RSS without detailed stats
-      for (let j = 3; j < videos.length; j++) {
-        videosWithStats.push(videos[j]);
-      }
-      
-      // Save videos to database
-      if (videosWithStats.length > 0) {
-        const videoRecords = videosWithStats.map(v => ({
-          channel_id: channel.id,
-          video_id: v.videoId,
-          title: v.title,
-          thumbnail_url: v.thumbnailUrl,
-          views: v.views,
-          likes: v.likes,
-          comments: v.comments,
-          duration: v.duration,
-          published_at: v.publishedAt || null
-        }));
 
-        await supabase
-          .from('competitor_videos')
-          .upsert(videoRecords, { onConflict: 'channel_id,video_id' });
+        // Save videos to database
+        if (channelData.videos.length > 0) {
+          const videoRecords = channelData.videos.map(v => ({
+            channel_id: channel.id,
+            video_id: v.videoId,
+            title: v.title,
+            thumbnail_url: v.thumbnailUrl,
+            views: v.views,
+            likes: v.likes,
+            comments: v.comments,
+            published_at: v.publishedAt || null
+          }));
+
+          await supabase
+            .from('competitor_videos')
+            .upsert(videoRecords, { onConflict: 'channel_id,video_id' });
+        }
       }
       
       // Get updated channel with videos
@@ -363,11 +221,6 @@ serve(async (req) => {
         ...updatedChannel,
         videos: updatedVideos || []
       });
-      
-      // Delay between channels to avoid rate limiting
-      if (i < channels.length - 1) {
-        await delay(1000);
-      }
     }
 
     return new Response(
