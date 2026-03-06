@@ -1378,7 +1378,8 @@ async function performVideoExport(resolution) {
       if (hasFont) {
         // Add Subtitle from scene.text
         if (scene.text && projectState.subtitlePreset !== 'none') {
-           let safeText = scene.text.replace(/'/g, "\\'").replace(/:/g, "\\:").replace(/,/g, "\\,");
+           // Replace newlines with spaces for drawtext, and safely escape quotes/colons/commas
+           let safeText = scene.text.replace(/\n/g, ' ').replace(/'/g, "\\u2019").replace(/:/g, "\\:").replace(/,/g, "\\,");
            // Font size proportional to video height, positioned at bottom 10%
            let subProps = `fontfile=font.ttf:text='${safeText}':fontsize=(h*0.04):x=(w-text_w)/2:y=(h-text_h)-(h*0.1)`;
            
@@ -1408,7 +1409,7 @@ async function performVideoExport(resolution) {
         // Add custom text overlays
         if (scene.overlays && scene.overlays.length > 0) {
         scene.overlays.forEach(ov => {
-          let safeText = ov.text.replace(/'/g, "\\'").replace(/:/g, "\\:").replace(/,/g, "\\,");
+          let safeText = ov.text.replace(/\n/g, ' ').replace(/'/g, "\\u2019").replace(/:/g, "\\:").replace(/,/g, "\\,");
           let drawtextProps = `fontfile=font.ttf:text='${safeText}':fontsize=${ov.fontSize}:x=(w-text_w)*(${ov.x}/100):y=(h-text_h)*(${ov.y}/100)`;
           if (ov.color) drawtextProps += `:fontcolor=${ov.color.replace('#', '0x')}`; else drawtextProps += `:fontcolor=white`;
           if (ov.bgColor && ov.bgColor !== 'transparent') {
@@ -1428,10 +1429,12 @@ async function performVideoExport(resolution) {
       concatFilter += `[${i}:v]fps=60,format=yuv420p,scale=${resColon}:force_original_aspect_ratio=decrease,pad=${resColon}:(ow-iw)/2:(oh-ih)/2,setdar=16/9${textFilters},trim=duration=${scene.duration},setpts=PTS-STARTPTS[v${i}];`;
       
       // Audio filters
+      // Use standard resample layout for all inputs so they perfectly match
       if (audioIndices[i] !== -1) {
          concatFilter += `[${audioIndices[i]}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${scene.duration},asetpts=PTS-STARTPTS[a${i}];`;
       } else {
-         concatFilter += `anullsrc=r=44100:cl=stereo,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${scene.duration},asetpts=PTS-STARTPTS[a${i}];`;
+         // anullsrc generates silence. Then we format it explicitly just like the rest
+         concatFilter += `anullsrc=channel_layout=stereo:sample_rate=44100,atrim=0:${scene.duration},asetpts=PTS-STARTPTS[a${i}];`;
       }
     }
 
@@ -1464,13 +1467,17 @@ async function performVideoExport(resolution) {
       if (pos.includes('top')) yPos = `${marginY}`;
       if (pos.includes('bottom')) yPos = `H-h-${marginY}`;
 
+      // 'shortest=1' makes overlay stop when the shortest input (vbase) stops, avoiding infinite looping logo
       concatFilter += `[${logoIndex}:v]scale=${logoW}:-1,format=rgba[logo];[vbase][logo]overlay=x=${xPos}:y=${yPos}:shortest=1[vlogo];`;
       outv = '[vlogo]';
     }
     
     // Apply Background Music
     if (bgMusicIndex !== -1) {
-      concatFilter += `[${bgMusicIndex}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.2,atrim=0:${projectState.totalDuration},asetpts=PTS-STARTPTS[bga];`;
+      // Loop background music if it is shorter than the video, then trim to total video duration, format and mix
+      // We removed stream_loop from inputs.push because it can be buggy with WebAssembly. Instead, we use aloop filter.
+      concatFilter += `[${bgMusicIndex}:a]aloop=loop=-1:size=2e+09,aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.2,atrim=0:${projectState.totalDuration},asetpts=PTS-STARTPTS[bga];`;
+      // amix mixes the main audio (abase) and background audio (bga). duration=first ensures the output ends when the video audio ends.
       concatFilter += `[abase][bga]amix=inputs=2:duration=first:dropout_transition=2[amixed];`;
       outa = '[amixed]';
     }
