@@ -1517,10 +1517,17 @@ async function performVideoExport(resolution) {
         }
       }
 
-      // Video filters (scale, pad, text overlays)
+      // Video filters (scale, pad, text overlays) - Simplified approach
       const resColon = resolution.replace('x', ':');
-      const textFilterPart = textFilters ? textFilters + ',' : '';
-      concatFilter += `[${i}:v]fps=60,format=yuv420p,scale=${resColon}:force_original_aspect_ratio=decrease,pad=${resColon}:(ow-iw)/2:(oh-ih)/2,setdar=16/9${textFilterPart}trim=duration=${scene.duration},setpts=PTS-STARTPTS[v${i}];`;
+      let videoFilter = `[${i}:v]fps=60,format=yuv420p,scale=${resColon}:force_original_aspect_ratio=decrease,pad=${resColon}:(ow-iw)/2:(oh-ih)/2,setdar=16/9`;
+      
+      // Add text filter if exists
+      if (textFilters) {
+        videoFilter += textFilters;
+      }
+      
+      videoFilter += `,trim=duration=${scene.duration},setpts=PTS-STARTPTS[v${i}];`;
+      concatFilter += videoFilter;
       
       // Audio filters
       // Use standard resample layout for all inputs so they perfectly match
