@@ -533,7 +533,14 @@
         initSupabase();
       }
       
-      const { data: { session } } = await supabaseClient.auth.getSession();
+      let { data: { session } } = await supabaseClient.auth.getSession();
+      
+      // If no session, try to refresh
+      if (!session) {
+        const { data: refreshData } = await supabaseClient.auth.refreshSession();
+        session = refreshData.session;
+      }
+      
       if (!session) {
         $('authGuest').style.display = 'block';
         $('authUser').style.display = 'none';
