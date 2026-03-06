@@ -17,6 +17,7 @@ let projectState = {
     size: 15,
     margin: 5
   },
+  backgroundMusic: null,
   scenes: [
     {
       id: generateId(),
@@ -202,6 +203,8 @@ function bindEvents() {
       if(altyaziPanel) altyaziPanel.style.display = 'none';
       const logoPanel = document.getElementById('logoPanelContent');
       if(logoPanel) logoPanel.style.display = 'none';
+      const muzikPanel = document.getElementById('muzikPanelContent');
+      if(muzikPanel) muzikPanel.style.display = 'none';
       
       if (panel === 'senaryo') {
         document.getElementById('activePanelContent').style.display = 'flex';
@@ -218,6 +221,8 @@ function bindEvents() {
         if(altyaziPanel) altyaziPanel.style.display = 'flex';
       } else if (panel === 'logo') {
         if(logoPanel) logoPanel.style.display = 'flex';
+      } else if (panel === 'muzik') {
+        if(muzikPanel) muzikPanel.style.display = 'flex';
       } else {
         // Fallback for others
         document.getElementById('activePanelContent').style.display = 'flex';
@@ -441,6 +446,135 @@ function bindEvents() {
         filterScenes(query.trim());
       }
     });
+  }
+
+  // Müzik Panel Logic
+  const YOUTUBE_MUSIC_LIBRARY = [
+    { id: 'm1', title: 'Luminous Rain', artist: 'Kevin MacLeod', genre: 'Ambient', url: 'https://upload.wikimedia.org/wikipedia/commons/e/ec/Kevin_MacLeod_-_Luminous_Rain.ogg' },
+    { id: 'm2', title: 'Ghost Dance', artist: 'Kevin MacLeod', genre: 'Cinematic', url: 'https://upload.wikimedia.org/wikipedia/commons/b/b5/Kevin_MacLeod_-_Ghost_Dance.ogg' },
+    { id: 'm3', title: 'Mirage', artist: 'Kevin MacLeod', genre: 'Electronic', url: 'https://upload.wikimedia.org/wikipedia/commons/3/3c/Kevin_MacLeod_-_Mirage.ogg' },
+    { id: 'm4', title: 'SoundHelix Song 1', artist: 'T.C.H', genre: 'Upbeat', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' }
+  ];
+
+  function renderMusicList(query = '') {
+    const container = document.getElementById('musicListContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    const filtered = YOUTUBE_MUSIC_LIBRARY.filter(m => 
+      m.title.toLowerCase().includes(query.toLowerCase()) || 
+      m.genre.toLowerCase().includes(query.toLowerCase())
+    );
+
+    filtered.forEach(music => {
+      const el = document.createElement('div');
+      el.style.cssText = 'padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: space-between; background: var(--bg-page);';
+      el.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <h4 style="margin:0; font-size:14px; font-weight:600;">${music.title}</h4>
+          <span style="font-size:11px; color:var(--text-muted);">${music.artist} • ${music.genre}</span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-icon mini play-preview-music" data-url="${music.url}" title="Dinle">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          </button>
+          <button class="btn-secondary mini select-music-btn" data-id="${music.id}" title="Videoya Ekle">Ekle</button>
+        </div>
+      `;
+      container.appendChild(el);
+    });
+
+    // Add event listeners for preview
+    container.querySelectorAll('.play-preview-music').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const url = e.currentTarget.getAttribute('data-url');
+        let audio = window.previewMusicAudio;
+        if (!audio) {
+           audio = new Audio();
+           window.previewMusicAudio = audio;
+        }
+        if (audio.src === url && !audio.paused) {
+           audio.pause();
+           e.currentTarget.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+        } else {
+           audio.src = url;
+           audio.play();
+           // Reset all icons
+           container.querySelectorAll('.play-preview-music').forEach(b => b.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`);
+           e.currentTarget.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+        }
+      });
+    });
+
+    // Add event listeners for selecting
+    container.querySelectorAll('.select-music-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const music = YOUTUBE_MUSIC_LIBRARY.find(m => m.id === id);
+        if (music) {
+          projectState.backgroundMusic = music;
+          updateActiveMusicUI();
+          renderTimeline(); // to show the track
+          
+          // Stop preview if playing
+          if (window.previewMusicAudio) {
+            window.previewMusicAudio.pause();
+            container.querySelectorAll('.play-preview-music').forEach(b => b.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`);
+          }
+        }
+      });
+    });
+  }
+
+  function updateActiveMusicUI() {
+    const container = document.getElementById('activeMusicContainer');
+    const titleEl = document.getElementById('activeMusicTitle');
+    if (!container || !titleEl) return;
+    
+    if (projectState.backgroundMusic) {
+       titleEl.textContent = projectState.backgroundMusic.title;
+       container.style.display = 'flex';
+       
+       // Setup main audio player
+       let bgPlayer = document.getElementById('bgMusicPlayer');
+       if (!bgPlayer) {
+          bgPlayer = document.createElement('audio');
+          bgPlayer.id = 'bgMusicPlayer';
+          bgPlayer.loop = true;
+          bgPlayer.volume = 0.3; // Default background volume
+          document.body.appendChild(bgPlayer);
+       }
+       bgPlayer.src = projectState.backgroundMusic.url;
+    } else {
+       container.style.display = 'none';
+       let bgPlayer = document.getElementById('bgMusicPlayer');
+       if (bgPlayer) {
+          bgPlayer.pause();
+          bgPlayer.src = '';
+       }
+    }
+  }
+
+  const removeMusicBtn = document.getElementById('removeMusicBtn');
+  if (removeMusicBtn) {
+    removeMusicBtn.addEventListener('click', () => {
+       projectState.backgroundMusic = null;
+       updateActiveMusicUI();
+       renderTimeline();
+    });
+  }
+
+  const musicSearchInput = document.getElementById('musicSearchInput');
+  if (musicSearchInput) {
+    musicSearchInput.addEventListener('input', (e) => {
+       renderMusicList(e.target.value);
+    });
+  }
+
+  // Initial render of music list
+  if (document.getElementById('musicListContainer')) {
+    renderMusicList();
+    updateActiveMusicUI();
   }
 
   // Logo Panel Logic
@@ -1171,6 +1305,7 @@ async function performVideoExport(resolution) {
     let concatFilter = '';
     let inputs = [];
     
+    // Pass 1: Add Video Inputs
     for (let i = 0; i < scenesWithMedia.length; i++) {
       const scene = scenesWithMedia[i];
       statusEl.textContent = `Medya indiriliyor (${i + 1}/${scenesWithMedia.length})...`;
@@ -1187,7 +1322,57 @@ async function performVideoExport(resolution) {
       } else {
         inputs.push(`-i`, inputName);
       }
-      
+    }
+
+    // Pass 2: Add Audio Inputs (TTS)
+    let audioIndices = [];
+    for (let i = 0; i < scenesWithMedia.length; i++) {
+      const scene = scenesWithMedia[i];
+      const audioEl = document.getElementById(`audio-${scene.id}`);
+      if (audioEl && audioEl.src && audioEl.src.startsWith('data:audio/')) {
+        statusEl.textContent = `Ses dosyaları hazırlanıyor (${i + 1}/${scenesWithMedia.length})...`;
+        const inputName = `audio_${i}.mp3`;
+        try {
+          const audData = await fetchFile(audioEl.src);
+          await ffmpeg.writeFile(inputName, audData);
+          inputs.push('-i', inputName);
+          audioIndices.push(inputs.filter(arg => arg === '-i').length - 1);
+        } catch (e) {
+          console.warn('TTS ses alma hatası:', e);
+          audioIndices.push(-1);
+        }
+      } else {
+        audioIndices.push(-1);
+      }
+    }
+
+    // Pass 3: Background Music
+    let bgMusicIndex = -1;
+    if (projectState.backgroundMusic && projectState.backgroundMusic.url) {
+      statusEl.textContent = "Arka plan müziği indiriliyor...";
+      try {
+        const bgData = await fetchFile(projectState.backgroundMusic.url);
+        await ffmpeg.writeFile('bgmusic.mp3', bgData);
+        inputs.push('-stream_loop', '-1', '-i', 'bgmusic.mp3');
+        bgMusicIndex = inputs.filter(arg => arg === '-i').length - 1;
+      } catch (err) {
+        console.warn("Müzik indirilemedi (CORS veya Ağ hatası olabilir), sessiz export ediliyor:", err);
+      }
+    }
+
+    // Pass 4: Logo
+    let logoIndex = -1;
+    if (projectState.logo && projectState.logo.url) {
+      statusEl.textContent = "Logo indiriliyor...";
+      const logoData = await fetchFile(projectState.logo.url);
+      await ffmpeg.writeFile('logo.png', logoData);
+      inputs.push('-loop', '1', '-t', projectState.totalDuration.toString(), '-i', 'logo.png');
+      logoIndex = inputs.filter(arg => arg === '-i').length - 1;
+    }
+
+    // Pass 5: Build Filters
+    for (let i = 0; i < scenesWithMedia.length; i++) {
+      const scene = scenesWithMedia[i];
       let textFilters = '';
       if (hasFont) {
         // Add Subtitle from scene.text
@@ -1222,95 +1407,83 @@ async function performVideoExport(resolution) {
         // Add custom text overlays
         if (scene.overlays && scene.overlays.length > 0) {
         scene.overlays.forEach(ov => {
-          // Escape single quotes, colons, and commas for FFmpeg
           let safeText = ov.text.replace(/'/g, "\\'").replace(/:/g, "\\:").replace(/,/g, "\\,");
-          
           let drawtextProps = `fontfile=font.ttf:text='${safeText}':fontsize=${ov.fontSize}:x=(w-text_w)*(${ov.x}/100):y=(h-text_h)*(${ov.y}/100)`;
-          
-          if (ov.color) {
-            let safeColor = ov.color.replace('#', '0x');
-            drawtextProps += `:fontcolor=${safeColor}`;
-          } else {
-            drawtextProps += `:fontcolor=white`;
-          }
-
+          if (ov.color) drawtextProps += `:fontcolor=${ov.color.replace('#', '0x')}`; else drawtextProps += `:fontcolor=white`;
           if (ov.bgColor && ov.bgColor !== 'transparent') {
             let safeBgColor = ov.bgColor;
             if (safeBgColor === 'rgba(0,0,0,0.7)') safeBgColor = 'black@0.7';
             else if (safeBgColor === 'rgba(255,255,255,0.7)') safeBgColor = 'white@0.7';
             else if (safeBgColor.startsWith('#')) safeBgColor = safeBgColor.replace('#', '0x');
-            
             drawtextProps += `:box=1:boxcolor=${safeBgColor}:boxborderw=8`;
           }
-
-          // Convert percentage to FFmpeg coordinates (w-text_w) * 0.5
           textFilters += `,drawtext=${drawtextProps}`;
         });
         }
       }
 
-      // Resize to selected resolution (1080p etc.), set DAR to 16:9, trim to scene.duration, add text overlays
+      // Video filters (scale, pad, text overlays)
       const resColon = resolution.replace('x', ':');
       concatFilter += `[${i}:v]fps=60,format=yuv420p,scale=${resColon}:force_original_aspect_ratio=decrease,pad=${resColon}:(ow-iw)/2:(oh-ih)/2,setdar=16/9${textFilters},trim=duration=${scene.duration},setpts=PTS-STARTPTS[v${i}];`;
+      
+      // Audio filters
+      if (audioIndices[i] !== -1) {
+         concatFilter += `[${audioIndices[i]}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${scene.duration},asetpts=PTS-STARTPTS[a${i}];`;
+      } else {
+         concatFilter += `anullsrc=r=44100:cl=stereo,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${scene.duration},asetpts=PTS-STARTPTS[a${i}];`;
+      }
     }
 
-    // 2. Concat the streams
+    // 2. Concat the streams (Video + Audio)
     statusEl.textContent = "Sahneler Birleştiriliyor (Render ediliyor)... Bu biraz zaman alabilir.";
     
     let concatStreamInputs = '';
     for (let i = 0; i < scenesWithMedia.length; i++) {
-      concatStreamInputs += `[v${i}]`;
+      concatStreamInputs += `[v${i}][a${i}]`;
     }
     
-    // Check if we need to apply a global logo
-    let mapOut = '[outv]';
-    if (projectState.logo && projectState.logo.url) {
-      statusEl.textContent = "Logo indiriliyor...";
-      const logoData = await fetchFile(projectState.logo.url);
-      await ffmpeg.writeFile('logo.png', logoData);
-      
-      // Add logo as a looped input to match total duration
-      inputs.push('-loop', '1', '-t', projectState.totalDuration.toString(), '-i', 'logo.png');
-      
-      let totalInputs = inputs.filter(item => item === '-i').length;
-      const actualLogoIndex = totalInputs - 1; // 0-based index for FFmpeg input
+    // Concat both V and A
+    concatFilter += `${concatStreamInputs}concat=n=${scenesWithMedia.length}:v=1:a=1[vbase][abase];`;
+    let outv = '[vbase]';
+    let outa = '[abase]';
 
-      // Add concat filter first, then overlay filter
-      concatFilter += `${concatStreamInputs}concat=n=${scenesWithMedia.length}:v=1:a=0[concatv];`;
-      
+    // Apply Logo
+    if (logoIndex !== -1) {
       const pos = projectState.logo.position || 'top-right';
       const sizePct = projectState.logo.size || 15;
       const marginPct = projectState.logo.margin || 5;
-
-      // Calculate width and margin based on selected resolution string (e.g. "1920x1080")
       const [resW, resH] = resolution.split('x').map(Number);
-      
       const logoW = Math.round(resW * (sizePct / 100));
       const marginX = Math.round(resW * (marginPct / 100));
       const marginY = Math.round(resH * (marginPct / 100));
       
-      let xPos = "0";
-      let yPos = "0";
-      
+      let xPos = "0", yPos = "0";
       if (pos.includes('left')) xPos = `${marginX}`;
       if (pos.includes('right')) xPos = `W-w-${marginX}`;
-      
       if (pos.includes('top')) yPos = `${marginY}`;
       if (pos.includes('bottom')) yPos = `H-h-${marginY}`;
 
-      // Scale logo to absolute width, ensure it has alpha channel, then overlay with shortest=1
-      concatFilter += `[${actualLogoIndex}:v]scale=${logoW}:-1,format=rgba[logo];[concatv][logo]overlay=x=${xPos}:y=${yPos}:shortest=1[outv]`;
-    } else {
-      concatFilter += `${concatStreamInputs}concat=n=${scenesWithMedia.length}:v=1:a=0[outv]`;
+      concatFilter += `[${logoIndex}:v]scale=${logoW}:-1,format=rgba[logo];[vbase][logo]overlay=x=${xPos}:y=${yPos}:shortest=1[vlogo];`;
+      outv = '[vlogo]';
+    }
+    
+    // Apply Background Music
+    if (bgMusicIndex !== -1) {
+      concatFilter += `[${bgMusicIndex}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${projectState.totalDuration},asetpts=PTS-STARTPTS,volume=0.2[bga];`;
+      concatFilter += `[abase][bga]amix=inputs=2:duration=first:dropout_transition=2[amixed];`;
+      outa = '[amixed]';
     }
 
     const args = [
       ...inputs,
       '-filter_complex', concatFilter,
-      '-map', '[outv]',
+      '-map', outv,
+      '-map', outa,
       '-c:v', 'libx264',
       '-preset', 'ultrafast',
       '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac',
+      '-b:a', '192k',
       '-t', projectState.totalDuration.toString(),
       'output.mp4'
     ];
@@ -1583,6 +1756,11 @@ function initTimelineInteractions() {
     
     projectState.currentTime = x / pixelsPerSecond;
     updatePlayhead();
+    
+    const bgMusicPlayer = document.getElementById('bgMusicPlayer');
+    if (bgMusicPlayer && bgMusicPlayer.src) {
+      bgMusicPlayer.currentTime = projectState.currentTime % bgMusicPlayer.duration || projectState.currentTime;
+    }
   }
 
   function handleClipResize(clientX) {
@@ -1622,6 +1800,17 @@ function renderTimeline() {
   const audioTrack = document.getElementById('audioTrack');
   videoTrack.innerHTML = '';
   audioTrack.innerHTML = '';
+  
+  let bgMusicTrack = document.getElementById('bgMusicTrack');
+  if (!bgMusicTrack) {
+     bgMusicTrack = document.createElement('div');
+     bgMusicTrack.id = 'bgMusicTrack';
+     bgMusicTrack.className = 'timeline-track audio-track';
+     bgMusicTrack.style.marginTop = '4px';
+     bgMusicTrack.style.display = 'none';
+     document.querySelector('.timeline-track-group').appendChild(bgMusicTrack);
+  }
+  bgMusicTrack.innerHTML = '';
   
   const pixelsPerSecond = 30; // 30px per second for timeline scale
   
@@ -1688,6 +1877,22 @@ function renderTimeline() {
     
     currentOffset += width;
   });
+
+  if (projectState.backgroundMusic) {
+    bgMusicTrack.style.display = 'block';
+    const bgClip = document.createElement('div');
+    bgClip.className = 'timeline-clip clip-audio';
+    bgClip.style.left = '0px';
+    bgClip.style.width = `${projectState.totalDuration * pixelsPerSecond}px`;
+    bgClip.style.backgroundColor = 'rgba(0, 163, 255, 0.4)';
+    bgClip.style.borderColor = 'rgba(0, 163, 255, 0.8)';
+    bgClip.style.borderStyle = 'solid';
+    bgClip.style.borderWidth = '1px';
+    bgClip.innerHTML = `<span class="clip-label" style="color:#fff; text-shadow:1px 1px 2px rgba(0,0,0,0.8);">${projectState.backgroundMusic.title} (Arka Plan)</span>`;
+    bgMusicTrack.appendChild(bgClip);
+  } else {
+    bgMusicTrack.style.display = 'none';
+  }
 }
 
 function formatTime(seconds) {
@@ -1703,6 +1908,7 @@ function togglePlay() {
   const pauseIcon = document.querySelector('.icon-pause');
   const player = document.getElementById('mainVideoPlayer');
   const currentSceneAudio = document.getElementById(`audio-${projectState.activeSceneId}`);
+  const bgMusicPlayer = document.getElementById('bgMusicPlayer');
 
   if (projectState.isPlaying) {
     playIcon.style.display = 'none';
@@ -1719,8 +1925,13 @@ function togglePlay() {
         const audioCurrentTime = projectState.currentTime - offset;
         if (audioCurrentTime >= 0 && audioCurrentTime < currentSceneAudio.duration) {
             currentSceneAudio.currentTime = audioCurrentTime;
-            currentSceneAudio.play();
+            currentSceneAudio.play().catch(e => console.error(e));
         }
+    }
+    
+    if (bgMusicPlayer && bgMusicPlayer.src) {
+        bgMusicPlayer.currentTime = projectState.currentTime % bgMusicPlayer.duration || projectState.currentTime;
+        bgMusicPlayer.play().catch(e => console.error(e));
     }
     
     playbackInterval = setInterval(() => {
@@ -1737,6 +1948,7 @@ function togglePlay() {
     
     if (player && player.src) player.pause();
     if (currentSceneAudio && currentSceneAudio.src) currentSceneAudio.pause();
+    if (bgMusicPlayer && bgMusicPlayer.src) bgMusicPlayer.pause();
     
     clearInterval(playbackInterval);
   }

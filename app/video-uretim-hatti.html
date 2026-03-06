@@ -190,6 +190,32 @@
         </div>
       </div>
     </section>
+
+    <!-- Müzik Panel (Hidden by default) -->
+    <section class="editor-panel" id="muzikPanelContent" style="display:none; flex-direction: column;">
+      <div class="panel-header" style="flex-shrink: 0;">
+        <h2 class="panel-title">Müzik Ekle</h2>
+      </div>
+      <div style="padding: 16px; overflow-y: auto; flex: 1;">
+        <div id="activeMusicContainer" style="margin-bottom: 16px; display: none; padding: 12px; background: rgba(0, 163, 255, 0.1); border: 1px solid var(--brand); border-radius: var(--radius); align-items: center; justify-content: space-between;">
+           <div>
+             <span style="font-size: 11px; color: var(--brand); font-weight: 600; text-transform: uppercase;">Aktif Müzik</span>
+             <h4 id="activeMusicTitle" style="margin: 2px 0 0 0; font-size: 14px; font-weight: 600;">Şarkı Adı</h4>
+           </div>
+           <button class="btn-icon mini" id="removeMusicBtn" title="Müziği Kaldır" style="color: var(--danger);">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+           </button>
+        </div>
+        <div class="search-input-wrap full-width" style="margin-bottom: 16px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" class="search-input" id="musicSearchInput" placeholder="Müzik türü veya adı arayın" />
+        </div>
+        <div id="musicListContainer" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Music list will be populated here by JS -->
+        </div>
+      </div>
+    </section>
+
     <!-- Logo Panel (Hidden by default) -->
     <section class="editor-panel" id="logoPanelContent" style="display:none; flex-direction: column;">
       <div class="panel-header" style="flex-shrink: 0;">
