@@ -1376,10 +1376,19 @@ async function performVideoExport(resolution) {
       const scene = scenesWithMedia[i];
       let textFilters = '';
       if (hasFont) {
+        // Helper function for completely safe FFmpeg text encoding
+        const encodeFFmpegText = (str) => {
+          if(!str) return '';
+          return str.replace(/[\n\r]+/g, ' ')
+             .split("'").join('\\u2019')
+             .split(':').join('\\\\\\\\:')
+             .split(',').join('\\\\\\\\,')
+             .split('%').join('\\\\\\\\%');
+        };
+
         // Add Subtitle from scene.text
         if (scene.text && projectState.subtitlePreset !== 'none') {
-           // Replace newlines with spaces for drawtext, and safely escape quotes/colons/commas
-           let safeText = scene.text.replace(/[\n\r]+/g, ' ').replace(/'/g, "\u2019").replace(/:/g, "\\:").replace(/,/g, "\\,").replace(/%/g, "\\%");
+           let safeText = encodeFFmpegText(scene.text);
            // Font size proportional to video height, positioned at bottom 10%
            let subProps = `fontfile=font.ttf:text='${safeText}':fontsize=(h*0.04):x=(w-text_w)/2:y=(h-text_h)-(h*0.1)`;
            
@@ -1409,7 +1418,7 @@ async function performVideoExport(resolution) {
         // Add custom text overlays
         if (scene.overlays && scene.overlays.length > 0) {
         scene.overlays.forEach(ov => {
-          let safeText = ov.text.replace(/[\n\r]+/g, ' ').replace(/'/g, "\u2019").replace(/:/g, "\\:").replace(/,/g, "\\,").replace(/%/g, "\\%");
+          let safeText = encodeFFmpegText(ov.text);
           let drawtextProps = `fontfile=font.ttf:text='${safeText}':fontsize=${ov.fontSize}:x=(w-text_w)*(${ov.x}/100):y=(h-text_h)*(${ov.y}/100)`;
           if (ov.color) drawtextProps += `:fontcolor=${ov.color.replace('#', '0x')}`; else drawtextProps += `:fontcolor=white`;
           if (ov.bgColor && ov.bgColor !== 'transparent') {
