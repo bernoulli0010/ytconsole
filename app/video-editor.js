@@ -78,6 +78,14 @@ function initUI() {
 }
 
 function bindEvents() {
+  // Project Title Input Logic
+  const titleInput = document.getElementById('projectTitle');
+  if (titleInput) {
+    titleInput.addEventListener('input', (e) => {
+      projectState.title = e.target.value || "Başlıksız";
+    });
+  }
+
   // Overlay Dragging Logic
   document.addEventListener('mousemove', (e) => {
     if (!activeDragOverlay || !activeDragEl) return;
@@ -1213,7 +1221,13 @@ async function performVideoExport(resolution) {
 
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${projectState.title.replace(/[^a-z0-9]/gi, '_')}.mp4`;
+    
+    // Turkish characters and spaces preservation logic
+    const safeTitle = projectState.title
+      .replace(/[\/\\:*?"<>|]/g, '') // remove invalid filename characters
+      .trim() || "Basliksiz";
+      
+    a.download = `${safeTitle}.mp4`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
