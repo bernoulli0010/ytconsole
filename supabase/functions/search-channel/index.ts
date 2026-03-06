@@ -35,19 +35,19 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    const authHeader = req.headers.get('Authorization') || '';
+    if (!authHeader.startsWith('Bearer ')) {
       return new Response(
         JSON.stringify({ error: 'Yetkilendirme gerekli' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const accessToken = authHeader.replace('Bearer ', '').trim();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Geçersiz yetkilendirme' }),

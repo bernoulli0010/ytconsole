@@ -801,16 +801,41 @@
     }
 
     async function apiPost(functionName, body, session) {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-          "apikey": SUPABASE_KEY
-        },
-        body: JSON.stringify(body || {})
-      });
-      return response.json();
+      async function send(accessToken) {
+        return fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`,
+            "apikey": SUPABASE_KEY
+          },
+          body: JSON.stringify(body || {})
+        });
+      }
+
+      let response = await send(session.access_token);
+
+      if (response.status === 401) {
+        const { data } = await supabaseClient.auth.refreshSession();
+        const refreshed = data?.session;
+        if (refreshed?.access_token) {
+          response = await send(refreshed.access_token);
+        }
+      }
+
+      const raw = await response.text();
+      let parsed;
+      try {
+        parsed = raw ? JSON.parse(raw) : {};
+      } catch {
+        parsed = { error: raw || "Beklenmeyen sunucu yaniti" };
+      }
+
+      if (!response.ok && !parsed?.error) {
+        parsed.error = `HTTP ${response.status}`;
+      }
+
+      return parsed;
     }
 
     async function fetchProfileAndSession() {
