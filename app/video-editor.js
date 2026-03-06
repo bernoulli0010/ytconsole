@@ -844,8 +844,8 @@ async function generateTTS(sceneId) {
     
     console.log("TTS Response:", data, error);
     
-    if (error) throw error;
-    if (data && data.error) throw new Error(data.error);
+    if (error) { console.error("Supabase Invoke Error Full:", error); throw new Error(error.message || "Bilinmeyen API Hatası"); }
+    if (data && data.error) { console.error("API Returned Error:", data.error); throw new Error(data.error); }
     
     if (data && data.audio) {
       const audioUrl = "data:audio/mp3;base64," + data.audio;

@@ -3,6 +3,7 @@ import { encodeBase64 } from "jsr:@std/encoding/base64"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
@@ -12,7 +13,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const reqBody = await req.json()
+    let reqBody;
+    try {
+      reqBody = await req.json();
+    } catch (e) {
+      console.error("Failed to parse JSON body", e);
+      return new Response(JSON.stringify({ error: "Invalid JSON request body" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200
+      });
+    }
+    
     const text = reqBody.text
     const voice_id = reqBody.voice_id || "aura-asteria-en"
     
@@ -37,7 +48,7 @@ Deno.serve(async (req) => {
     if (!response.ok) {
        const errText = await response.text();
        console.error("Deepgram Error:", response.status, errText);
-       return new Response(JSON.stringify({ error: `Deepgram API Error (${response.status}): ${errText}` }), {
+       return new Response(JSON.stringify({ error: `Deepgram API Hatası: ${errText}` }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200
       })
@@ -52,7 +63,7 @@ Deno.serve(async (req) => {
     )
   } catch (error) {
     console.error("Edge Function Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error.message || "Bilinmeyen Sunucu Hatası" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200
     })
