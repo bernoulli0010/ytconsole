@@ -450,10 +450,11 @@ function bindEvents() {
 
   // Müzik Panel Logic
   const YOUTUBE_MUSIC_LIBRARY = [
-    { id: 'm1', title: 'Luminous Rain', artist: 'Kevin MacLeod', genre: 'Ambient', url: 'https://upload.wikimedia.org/wikipedia/commons/e/ec/Kevin_MacLeod_-_Luminous_Rain.ogg' },
-    { id: 'm2', title: 'Ghost Dance', artist: 'Kevin MacLeod', genre: 'Cinematic', url: 'https://upload.wikimedia.org/wikipedia/commons/b/b5/Kevin_MacLeod_-_Ghost_Dance.ogg' },
-    { id: 'm3', title: 'Mirage', artist: 'Kevin MacLeod', genre: 'Electronic', url: 'https://upload.wikimedia.org/wikipedia/commons/3/3c/Kevin_MacLeod_-_Mirage.ogg' },
-    { id: 'm4', title: 'SoundHelix Song 1', artist: 'T.C.H', genre: 'Upbeat', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' }
+    { id: 'm1', title: 'The Four Seasons - Spring', artist: 'Antonio Vivaldi', genre: 'Classical', url: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Vivaldi_-_Four_Seasons_1_Spring_mvt_1_Allegro_-_John_Harrison_violin.oga' },
+    { id: 'm2', title: 'Symphony No. 40 in G minor', artist: 'Wolfgang Amadeus Mozart', genre: 'Classical', url: 'https://upload.wikimedia.org/wikipedia/commons/9/99/Wolfgang_Amadeus_Mozart_-_Symphony_40_g-moll_-_1._Molto_allegro.ogg' },
+    { id: 'm3', title: 'Moonlight Sonata - 1st Mvt', artist: 'Ludwig van Beethoven', genre: 'Piano', url: 'https://upload.wikimedia.org/wikipedia/commons/e/eb/Beethoven_Moonlight_1st_movement.ogg' },
+    { id: 'm4', title: 'The Planets - Jupiter', artist: 'Gustav Holst', genre: 'Orchestral', url: 'https://upload.wikimedia.org/wikipedia/commons/e/e2/Holst_The_Planets_Jupiter.ogg' },
+    { id: 'm5', title: 'Dance of the Sugar Plum Fairy', artist: 'Pyotr Ilyich Tchaikovsky', genre: 'Ballet', url: 'https://upload.wikimedia.org/wikipedia/commons/9/9d/Tchaikovsky_-_Dance_of_the_Sugar_Plum_Fairy_-_The_Nutcracker.ogg' }
   ];
 
   function renderMusicList(query = '') {
