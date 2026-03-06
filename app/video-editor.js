@@ -1090,7 +1090,7 @@ function renderPropertiesPanel() {
     <div style="padding: 20px; display:flex; flex-direction:column; gap:20px; font-size:13px;">
       <div>
         <label style="color:var(--text-muted); font-weight:600; display:block; margin-bottom:8px;">Süre (Saniye)</label>
-        <input type="number" value="${activeScene.duration.toFixed(1).replace('.', ',')}" step="0.5" min="1" onchange="updateSceneDuration(this.value.replace(',', '.'), '${activeScene.id}')" style="width:100%; padding:10px 12px; border-radius:6px; border:1px solid var(--border); background:var(--bg-page); color:var(--text); font-weight:500;">
+        <input type="number" value="${activeScene.duration.toFixed(1)}" step="0.5" min="1" onchange="updateSceneDuration(this.value.replace(',', '.'), '${activeScene.id}')" style="width:100%; padding:10px 12px; border-radius:6px; border:1px solid var(--border); background:var(--bg-page); color:var(--text); font-weight:500;">
       </div>
       <div>
         <label style="color:var(--text-muted); font-weight:600; display:block; margin-bottom:8px;">Kelime Sayısı</label>
