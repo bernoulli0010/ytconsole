@@ -781,6 +781,14 @@ function openVoiceSelector(sceneId) {
         </div>
       `;
     });
+    
+    // Add "Apply to All" option
+    optionsHtml += `
+      <div style="padding: 12px; background: var(--bg-page); display: flex; align-items: center; gap: 8px; border-top: 2px solid var(--border);">
+        <input type="checkbox" id="applyVoiceToAllScenes" style="cursor: pointer;">
+        <label for="applyVoiceToAllScenes" style="font-size: 12px; cursor: pointer; color: var(--text); font-weight: 500;">Seçtiğim sesi tüm bölümlere uygula</label>
+      </div>
+    `;
 
     modal.innerHTML = `
       <div style="background: var(--bg); width: 400px; border-radius: var(--radius); box-shadow: var(--shadow-md); overflow: hidden;">
@@ -815,10 +823,34 @@ window.selectVoice = function(voiceId) {
   document.getElementById('voiceSelectorModal').style.display = 'none';
 };
 
-async function generateTTS(sceneId) {
+window.generateAllTTS = async () => {
+  const btn = document.getElementById('generateAllTtsBtn');
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="margin-right:4px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg> Seslendiriliyor...`;
+  btn.disabled = true;
+
+  let successCount = 0;
+  for (let i = 0; i < projectState.scenes.length; i++) {
+    const scene = projectState.scenes[i];
+    if (scene.text && scene.text.trim().length > 0) {
+      try {
+        await generateTTS(scene.id, true);
+        successCount++;
+      } catch (err) {
+        console.error("Batch TTS Error for scene " + scene.id, err);
+      }
+    }
+  }
+
+  btn.innerHTML = originalHtml;
+  btn.disabled = false;
+  alert(`Toplam ${successCount} bölüm başarıyla seslendirildi.`);
+};
+
+async function generateTTS(sceneId, isBatch = false) {
   const scene = projectState.scenes.find(s => s.id === sceneId);
   if (!scene || !scene.text.trim()) {
-    alert("Önce bu bölüm için bir metin yazmalısınız.");
+    if(!isBatch) alert("Önce bu bölüm için bir metin yazmalısınız.");
     return;
   }
   
@@ -865,7 +897,7 @@ async function generateTTS(sceneId) {
       
       // Auto-play the generated sound
       audioEl.play();
-      alert("Ses başarıyla oluşturuldu!");
+      if(!isBatch) alert("Ses başarıyla oluşturuldu!");
     } else {
       throw new Error("Ses verisi alınamadı. Lütfen tekrar deneyin.");
     }
@@ -1881,12 +1913,18 @@ function renderTimeline() {
     
     videoTrack.appendChild(vClip);
     
-    // Audio Clip (Voiceover placeholder)
-    if (scene.text.trim().length > 0) {
+    // Audio Clip (Generated TTS Voice)
+    const audioEl = document.getElementById(`audio-${scene.id}`);
+    if (audioEl && audioEl.src && audioEl.src.startsWith('data:audio/')) {
       const aClip = document.createElement('div');
       aClip.className = 'timeline-clip clip-audio';
       aClip.style.left = `${currentOffset}px`;
+      
+      // Calculate width based on actual audio duration or scene duration, whichever is smaller,
+      // but typically we match the scene width to keep it neat, or show real duration.
+      // Let's use scene width for now, but label it.
       aClip.style.width = `${width}px`;
+      aClip.innerHTML = `<span class="clip-label" style="color:#fff; text-shadow:1px 1px 2px rgba(0,0,0,0.8);">${scene.voice} 🎙️</span>`;
       audioTrack.appendChild(aClip);
     }
     
@@ -1984,9 +2022,13 @@ function updatePlayhead() {
     timeAccumulator += scene.duration;
       if (projectState.currentTime <= timeAccumulator) {
       if (projectState.activeSceneId !== scene.id) {
-        // Pause previous scene's audio
-        const oldSceneAudio = document.getElementById(`audio-${projectState.activeSceneId}`);
-        if (oldSceneAudio && oldSceneAudio.src) oldSceneAudio.pause();
+        // Pause ALL other scene audios to be safe
+        projectState.scenes.forEach(s => {
+           if (s.id !== scene.id) {
+              const otherAudio = document.getElementById(`audio-${s.id}`);
+              if (otherAudio && !otherAudio.paused) otherAudio.pause();
+           }
+        });
         
         projectState.activeSceneId = scene.id;
         renderScenes(); // updates UI and preview
@@ -1994,12 +2036,17 @@ function updatePlayhead() {
         // Ensure video and new audio is playing if active
         if (projectState.isPlaying) {
           const player = document.getElementById('mainVideoPlayer');
-          if (player.src) player.play();
+          if (player && player.src) player.play();
           
           const newSceneAudio = document.getElementById(`audio-${scene.id}`);
           if (newSceneAudio && newSceneAudio.src) {
-             newSceneAudio.currentTime = 0; // restart audio for new scene
-             newSceneAudio.play();
+             // Calculate exactly where the audio should start based on the offset into the scene
+             const sceneStartOffset = timeAccumulator - scene.duration;
+             const timeIntoScene = projectState.currentTime - sceneStartOffset;
+             if (timeIntoScene >= 0 && timeIntoScene < newSceneAudio.duration) {
+                 newSceneAudio.currentTime = timeIntoScene;
+                 newSceneAudio.play().catch(e => console.error("Audio auto-play prevented:", e));
+             }
           }
         }
       }
