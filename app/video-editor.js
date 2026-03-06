@@ -1583,6 +1583,11 @@ async function performVideoExport(resolution) {
       outa = '[amixed]';
     }
 
+    // Sondaki fazla noktalı virgülü kaldır ki FFmpeg "No such filter: ''" hatası vermesin
+    if (concatFilter.endsWith(';')) {
+      concatFilter = concatFilter.slice(0, -1);
+    }
+
     const args = [
       ...inputs,
       '-filter_complex', concatFilter,
