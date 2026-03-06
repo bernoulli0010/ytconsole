@@ -1259,15 +1259,26 @@ async function performVideoExport(resolution) {
   // Check if we have media to export. We MUST filter out scenes without media from the entire export logic,
   // AND recalculate the total export duration based ONLY on the scenes we are actually exporting.
 
-  const scenesWithMedia = projectState.scenes.filter(s => s.media);
+  const scenesWithMedia = projectState.scenes.filter(s => s.media && s.duration > 0);
   if (scenesWithMedia.length === 0) {
     alert("Dışa aktarılacak hiçbir medya (video) bulunamadı. Lütfen önce videoya sahne ekleyin.");
     document.getElementById('exportModal').remove();
     return;
   }
   
+  // Validate durations
+  for (const scene of scenesWithMedia) {
+    if (!scene.duration || scene.duration <= 0 || isNaN(scene.duration)) {
+      alert(`Sahne süresi geçersiz: ${scene.duration}. Lütfen sahne sürelerini kontrol edin.`);
+      document.getElementById('exportModal').remove();
+      return;
+    }
+  }
+  
   // CRITICAL FIX: The export duration must exactly match the sum of scenes we are actually exporting
   const exportDuration = scenesWithMedia.reduce((acc, s) => acc + s.duration, 0);
+  
+  console.log("[Export] Starting export with", scenesWithMedia.length, "scenes, total duration:", exportDuration);
 
 
   // --- TOKEN CHECK ---
@@ -1311,6 +1322,10 @@ async function performVideoExport(resolution) {
 
   ffmpeg.on('log', ({ message }) => {
     console.log('[FFmpeg]', message);
+    // Add error details
+    if (message.toLowerCase().includes('error') || message.toLowerCase().includes('failed')) {
+      statusEl.textContent = "FFmpeg Hatası: " + message.substring(0, 100);
+    }
   });
   
   ffmpeg.on('progress', ({ progress }) => {
@@ -1354,8 +1369,16 @@ async function performVideoExport(resolution) {
       const extension = isImage ? 'jpg' : 'mp4';
       const inputName = `input_${i}.${extension}`;
 
-      const vidData = await fetchFile(scene.media.url);
-      await ffmpeg.writeFile(inputName, vidData);
+      console.log(`[Export] Downloading media ${i}: ${scene.media.url} (type: ${scene.media.type})`);
+      
+      try {
+        const vidData = await fetchFile(scene.media.url);
+        await ffmpeg.writeFile(inputName, vidData);
+        console.log(`[Export] Media ${i} written successfully (${vidData.byteLength} bytes)`);
+      } catch (mediaErr) {
+        console.error(`[Export] Media ${i} download error:`, mediaErr);
+        throw new Error(`Medya indirilemedi (Sahne ${i+1}): ${mediaErr.message}. CORS sorunu olabilir.`);
+      }
       
       if (isImage) {
         inputs.push('-loop', '1', '-framerate', '60', '-t', scene.duration.toString(), '-i', inputName);
@@ -1368,20 +1391,31 @@ async function performVideoExport(resolution) {
     let audioIndices = [];
     for (let i = 0; i < scenesWithMedia.length; i++) {
       const scene = scenesWithMedia[i];
-      const audioEl = document.getElementById(`audio-${scene.id}`);
-      if (audioEl && audioEl.src && audioEl.src.startsWith('data:audio/')) {
+      
+      // First check scene.audioUrl (persisted TTS), then fallback to DOM element
+      let audioSrc = scene.audioUrl || null;
+      if (!audioSrc) {
+        const audioEl = document.getElementById(`audio-${scene.id}`);
+        if (audioEl && audioEl.src) {
+          audioSrc = audioEl.src;
+        }
+      }
+      
+      if (audioSrc && (audioSrc.startsWith('data:audio/') || audioSrc.startsWith('blob:'))) {
         statusEl.textContent = `Ses dosyaları hazırlanıyor (${i + 1}/${scenesWithMedia.length})...`;
         const inputName = `audio_${i}.mp3`;
         try {
-          const audData = await fetchFile(audioEl.src);
+          const audData = await fetchFile(audioSrc);
           await ffmpeg.writeFile(inputName, audData);
           inputs.push('-i', inputName);
           audioIndices.push(inputs.filter(arg => arg === '-i').length - 1);
+          console.log(`[Export] TTS audio added for scene ${i}: ${inputName}`);
         } catch (e) {
           console.warn('TTS ses alma hatası:', e);
           audioIndices.push(-1);
         }
       } else {
+        console.log(`[Export] No TTS audio for scene ${i} (audioSrc: ${audioSrc ? 'exists but not data/blob' : 'null'})`);
         audioIndices.push(-1);
       }
     }
@@ -1390,12 +1424,15 @@ async function performVideoExport(resolution) {
     let bgMusicIndex = -1;
     if (projectState.backgroundMusic && projectState.backgroundMusic.url) {
       statusEl.textContent = "Arka plan müziği indiriliyor...";
+      console.log("[Export] Downloading background music:", projectState.backgroundMusic.url);
       try {
         const bgData = await fetchFile(projectState.backgroundMusic.url);
         await ffmpeg.writeFile('bgmusic.mp3', bgData);
         inputs.push('-i', 'bgmusic.mp3');
         bgMusicIndex = inputs.filter(arg => arg === '-i').length - 1;
+        console.log("[Export] Background music added at index:", bgMusicIndex);
       } catch (err) {
+        console.error("[Export] Background music download error:", err);
         console.warn("Müzik indirilemedi (CORS veya Ağ hatası olabilir), sessiz export ediliyor:", err);
       }
     }
@@ -1404,10 +1441,16 @@ async function performVideoExport(resolution) {
     let logoIndex = -1;
     if (projectState.logo && projectState.logo.url) {
       statusEl.textContent = "Logo indiriliyor...";
-      const logoData = await fetchFile(projectState.logo.url);
-      await ffmpeg.writeFile('logo.png', logoData);
-      inputs.push('-loop', '1', '-t', exportDuration.toString(), '-i', 'logo.png');
-      logoIndex = inputs.filter(arg => arg === '-i').length - 1;
+      console.log("[Export] Downloading logo:", projectState.logo.url);
+      try {
+        const logoData = await fetchFile(projectState.logo.url);
+        await ffmpeg.writeFile('logo.png', logoData);
+        inputs.push('-loop', '1', '-t', exportDuration.toString(), '-i', 'logo.png');
+        logoIndex = inputs.filter(arg => arg === '-i').length - 1;
+        console.log("[Export] Logo added at index:", logoIndex);
+      } catch (err) {
+        console.error("[Export] Logo download error:", err);
+      }
     }
 
     // Pass 5: Build Filters
@@ -1544,12 +1587,26 @@ async function performVideoExport(resolution) {
       'output.mp4'
     ];
 
+    console.log("=== FFmpeg Export Debug Info ===");
+    console.log("Resolution:", resolution);
+    console.log("Export Duration:", exportDuration);
+    console.log("Scenes with media:", scenesWithMedia.length);
+    console.log("Audio indices:", audioIndices);
+    console.log("Background music index:", bgMusicIndex);
+    console.log("Logo index:", logoIndex);
+    console.log("Total inputs:", inputs.length / 2, "(video+audio pairs)");
     console.log("Running FFmpeg with args:", args);
     console.log("FULL CONCAT FILTER:", concatFilter);
-    const code = await ffmpeg.exec(args);
     
-    if (code !== 0) {
-      throw new Error(`FFmpeg işlemi hata kodu ile sonlandı: ${code}`);
+    try {
+      const code = await ffmpeg.exec(args);
+      
+      if (code !== 0) {
+        throw new Error(`FFmpeg işlemi hata kodu ile sonlandı: ${code}`);
+      }
+    } catch (execErr) {
+      console.error("FFmpeg exec error details:", execErr);
+      throw execErr;
     }
 
     statusEl.textContent = "Video indiriliyor...";
@@ -1595,8 +1652,11 @@ async function performVideoExport(resolution) {
     alert(`Video başarıyla oluşturuldu ve bilgisayarınıza indirildi!${tokenMsg}`);
 
   } catch (err) {
-    console.error("FFmpeg Export Error:", err);
-    alert("Video oluşturulurken bir hata oluştu veya işlem iptal edildi: " + err.message + "\n(Tarayıcı CORS politikaları nedeniyle medya indirilememiş olabilir.)");
+    console.error("=== FFmpeg Export Error ===");
+    console.error("Error message:", err.message);
+    console.error("Error stack:", err.stack);
+    console.error("projectState.scenes:", JSON.stringify(projectState.scenes.map(s => ({id: s.id, hasMedia: !!s.media, mediaType: s.media?.type, duration: s.duration, hasAudioUrl: !!s.audioUrl}))));
+    alert("Video oluşturulurken bir hata oluştu: " + err.message + "\n\nLütfen tarayıcı konsolunu (F12) açarak detaylı hata bilgilerini kontrol edin.");
     const modal = document.getElementById('exportModal');
     if (modal) modal.remove();
     window.activeFFmpeg = null;
