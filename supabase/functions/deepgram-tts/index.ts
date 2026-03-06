@@ -20,7 +20,7 @@ serve(async (req) => {
     
     if (!DEEPGRAM_API_KEY) throw new Error("API Key is missing");
 
-    const response = await fetch(`https://api.deepgram.com/v1/speak?model=${voice_id}&encoding=mp3&sample_rate=44100`, {
+    const response = await fetch(`https://api.deepgram.com/v1/speak?model=${voice_id}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
