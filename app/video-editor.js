@@ -1106,7 +1106,7 @@ async function performVideoExport(resolution) {
       await ffmpeg.writeFile(inputName, vidData);
       
       if (isImage) {
-        inputs.push('-loop', '1', '-framerate', '30', '-t', scene.duration.toString(), '-i', inputName);
+        inputs.push('-loop', '1', '-framerate', '60', '-t', scene.duration.toString(), '-i', inputName);
       } else {
         inputs.push(`-i`, inputName);
       }
@@ -1174,7 +1174,7 @@ async function performVideoExport(resolution) {
 
       // Resize to selected resolution (1080p etc.), set DAR to 16:9, trim to scene.duration, add text overlays
       const resColon = resolution.replace('x', ':');
-      concatFilter += `[${i}:v]scale=${resColon}:force_original_aspect_ratio=decrease,pad=${resColon}:(ow-iw)/2:(oh-ih)/2,setdar=16/9${textFilters},trim=duration=${scene.duration}[v${i}];`;
+      concatFilter += `[${i}:v]fps=60,format=yuv420p,scale=${resColon}:force_original_aspect_ratio=decrease,pad=${resColon}:(ow-iw)/2:(oh-ih)/2,setdar=16/9${textFilters},trim=duration=${scene.duration},setpts=PTS-STARTPTS[v${i}];`;
     }
 
     // 2. Concat the streams
