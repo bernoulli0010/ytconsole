@@ -1256,13 +1256,19 @@ async function performVideoExport(resolution) {
   const statusEl = document.getElementById('exportStatusText');
   const progressEl = document.getElementById('exportProgressBar');
 
-  // Check if we have media to export
+  // Check if we have media to export. We MUST filter out scenes without media from the entire export logic,
+  // AND recalculate the total export duration based ONLY on the scenes we are actually exporting.
+
   const scenesWithMedia = projectState.scenes.filter(s => s.media);
   if (scenesWithMedia.length === 0) {
     alert("Dışa aktarılacak hiçbir medya (video) bulunamadı. Lütfen önce videoya sahne ekleyin.");
     document.getElementById('exportModal').remove();
     return;
   }
+  
+  // CRITICAL FIX: The export duration must exactly match the sum of scenes we are actually exporting
+  const exportDuration = scenesWithMedia.reduce((acc, s) => acc + s.duration, 0);
+
 
   // --- TOKEN CHECK ---
   let userId = null;
@@ -1400,7 +1406,7 @@ async function performVideoExport(resolution) {
       statusEl.textContent = "Logo indiriliyor...";
       const logoData = await fetchFile(projectState.logo.url);
       await ffmpeg.writeFile('logo.png', logoData);
-      inputs.push('-loop', '1', '-t', projectState.totalDuration.toString(), '-i', 'logo.png');
+      inputs.push('-loop', '1', '-t', exportDuration.toString(), '-i', 'logo.png');
       logoIndex = inputs.filter(arg => arg === '-i').length - 1;
     }
 
@@ -1518,7 +1524,7 @@ async function performVideoExport(resolution) {
     if (bgMusicIndex !== -1) {
       // Loop background music if it is shorter than the video, then trim to total video duration, format and mix
       // We removed stream_loop from inputs.push because it can be buggy with WebAssembly. Instead, we use aloop filter.
-      concatFilter += `[${bgMusicIndex}:a]aloop=loop=-1:size=2e+09,aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.15,atrim=0:${projectState.totalDuration},asetpts=PTS-STARTPTS[bga];`;
+      concatFilter += `[${bgMusicIndex}:a]aloop=loop=-1:size=2e+09,aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.15,atrim=0:${exportDuration},asetpts=PTS-STARTPTS[bga];`;
       // amix mixes the main audio (abase) and background audio (bga). duration=first ensures the output ends when the video audio ends.
       concatFilter += `[abase][bga]amix=inputs=2:duration=first:dropout_transition=2[amixed];`;
       outa = '[amixed]';
@@ -1534,7 +1540,7 @@ async function performVideoExport(resolution) {
       '-pix_fmt', 'yuv420p',
       '-c:a', 'aac',
       '-b:a', '192k',
-      '-t', projectState.totalDuration.toString(),
+      '-t', exportDuration.toString(),
       'output.mp4'
     ];
 
