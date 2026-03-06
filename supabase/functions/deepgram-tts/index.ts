@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const DEEPGRAM_API_KEY = "14da2a8493057a4bc9fe2ef8ee856d76031c8a2d";
+    const DEEPGRAM_API_KEY = "91140701e85c976dfcdabe5ed89968621fddfebd";
 
     const response = await fetch(`https://api.deepgram.com/v1/speak?model=${voice_id}`, {
       method: "POST",
