@@ -1783,58 +1783,7 @@ select,
 
 /* ── Dashboard ── */
 .dashboard {
-  position: relative;
   padding-top: 40px;
-  padding-bottom: 48px;
-  overflow: hidden;
-}
-
-.dashboard-content {
-  position: relative;
-  z-index: 2;
-}
-
-.dashboard-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.dashboard-paths {
-  position: absolute;
-  inset: -8% -6%;
-  width: 112%;
-  height: 116%;
-  color: #0f172a;
-}
-
-.dashboard-path {
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-  animation: dash-flow 24s linear infinite, path-pulse 8s ease-in-out infinite;
-}
-
-@keyframes dash-flow {
-  from {
-    stroke-dashoffset: 0;
-  }
-  to {
-    stroke-dashoffset: calc(var(--path-length, 480) * -1);
-  }
-}
-
-@keyframes path-pulse {
-  0%,
-  100% {
-    opacity: 0.24;
-  }
-  50% {
-    opacity: 0.62;
-  }
 }
 
 .dashboard-hero {
@@ -1865,12 +1814,6 @@ select,
     grid-template-columns: 1fr;
   }
 
-  .dashboard-paths {
-    inset: -12% -18%;
-    width: 136%;
-    height: 132%;
-  }
-  
   .dashboard-hero h1 {
     font-size: 24px;
   }
@@ -1969,10 +1912,6 @@ select,
 /* Dashboard dark mode */
 [data-theme="dark"] .tool-card:hover {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .dashboard-paths {
-  color: #ffffff;
 }
 
 /* Brand link */
