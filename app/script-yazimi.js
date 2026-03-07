@@ -49,6 +49,21 @@ function toParagraphText(items) {
   return (items || []).map((x) => collapseText(x.text)).filter(Boolean).join("\n\n");
 }
 
+function parseParagraphChunks(rawText) {
+  const blocks = (rawText || "")
+    .split(/\n\s*\n/)
+    .map((x) => collapseText(x))
+    .filter(Boolean);
+
+  return blocks.map((text, idx) => ({
+    index: idx + 1,
+    text,
+    duration: 8,
+    start: idx * 8,
+    end: (idx + 1) * 8,
+  }));
+}
+
 function clearDownstream(step) {
   if (step <= 2) {
     pipelineState.trSegments = [];
@@ -174,6 +189,11 @@ async function handleSegment() {
 
 async function handleTranslateFinal() {
   const btn = $("translateFinalBtn");
+  const manualChunks = parseParagraphChunks($("segmentedOutput").value);
+  if (manualChunks.length) {
+    pipelineState.chunkedSegments = manualChunks;
+  }
+
   if (!pipelineState.chunkedSegments.length) {
     setStatus("Önce 3. adımda bölümleme yapılmalı.", "error");
     return;
@@ -238,6 +258,13 @@ document.addEventListener("DOMContentLoaded", () => {
   $("segmentBtn").addEventListener("click", handleSegment);
   $("translateFinalBtn").addEventListener("click", handleTranslateFinal);
   $("transferBtn").addEventListener("click", handleTransfer);
+
+  $("segmentedOutput").addEventListener("input", () => {
+    const manualChunks = parseParagraphChunks($("segmentedOutput").value);
+    if (manualChunks.length) {
+      pipelineState.chunkedSegments = manualChunks;
+    }
+  });
 
   setStatus("Hazır. 1. adımdan başlayabilirsin.");
 });
