@@ -605,7 +605,7 @@ async function initData() {
     } catch (err) {
       state.supabaseReady = false;
       showNotice(
-        "Supabase tablosu okunamadi. pipeline_tasks tablosunu olusturup tekrar deneyin."
+        `Supabase okuma hatasi: ${err.message}. Tablo/policy/grant ayarlarini kontrol edin (pipeline_tasks).`
       );
       setWriteEnabled(true);
     }
