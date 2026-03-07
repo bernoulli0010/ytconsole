@@ -100,7 +100,8 @@ async function handleExtract() {
     pipelineState.extractedSegments = Array.isArray(res.segments) ? res.segments : [];
 
     $("transcriptOutput").value = res.transcript || "";
-    $("extractMeta").textContent = `Video: ${pipelineState.title || "Bilinmiyor"} | Kaynak dil: ${pipelineState.sourceLang || "Bilinmiyor"} | Satır: ${pipelineState.extractedSegments.length}`;
+    const modeNote = res.transcriptMode === "description_fallback" ? " | Mod: Açıklamadan üretildi" : " | Mod: Caption";
+    $("extractMeta").textContent = `Video: ${pipelineState.title || "Bilinmiyor"} | Kaynak dil: ${pipelineState.sourceLang || "Bilinmiyor"} | Satır: ${pipelineState.extractedSegments.length}${modeNote}`;
 
     clearDownstream(2);
     setStatus("1. adım tamamlandı. Şimdi Türkçe çeviriye geçebilirsin.", "success");

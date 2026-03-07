@@ -233,15 +233,7 @@ function parseJsonArrayAfterKey(raw: string, key: string): unknown[] {
 }
 
 async function fetchWatchPageCaptionTracks(videoId: string): Promise<WatchCaptionTrack[]> {
-  const response = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en`, {
-    headers: { "User-Agent": "Mozilla/5.0" },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Watch page alınamadı (${response.status}).`);
-  }
-
-  const html = await response.text();
+  const html = await fetchWatchPageHtml(videoId);
   const rawTracks = parseJsonArrayAfterKey(html, '"captionTracks":');
   const tracks: WatchCaptionTrack[] = rawTracks
     .map((item) => {
@@ -389,6 +381,66 @@ async function fetchCaptionSegments(videoId: string, track: Record<string, strin
 function transcriptFromSegments(segments: CaptionSegment[]): string {
   const joined = segments.map((s) => s.text).join(" ");
   return joined.replace(/\s+/g, " ").trim();
+}
+
+function splitTextForFallback(text: string): string[] {
+  const normalized = cleanText((text || "").replace(/\r/g, "")).trim();
+  if (!normalized) return [];
+
+  const lineParts = normalized
+    .split("\n")
+    .map((line) => cleanText(line))
+    .filter((line) => line.length >= 20);
+
+  if (lineParts.length >= 3) return lineParts.slice(0, 40);
+
+  return normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => cleanText(s))
+    .filter((s) => s.length >= 20)
+    .slice(0, 40);
+}
+
+function buildSegmentsFromPlainText(text: string): CaptionSegment[] {
+  const parts = splitTextForFallback(text);
+  const segments: CaptionSegment[] = [];
+  let start = 0;
+
+  for (const part of parts) {
+    const words = part.split(/\s+/).filter(Boolean).length;
+    const duration = Math.min(12, Math.max(2.5, words / 2.4));
+    segments.push({
+      text: part,
+      start: Number(start.toFixed(2)),
+      end: Number((start + duration).toFixed(2)),
+      duration: Number(duration.toFixed(2)),
+    });
+    start += duration;
+  }
+
+  return segments;
+}
+
+async function fetchWatchPageHtml(videoId: string): Promise<string> {
+  const response = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en`, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+  });
+  if (!response.ok) {
+    throw new Error(`Watch page alınamadı (${response.status}).`);
+  }
+  return response.text();
+}
+
+function extractShortDescriptionFromWatchHtml(html: string): string {
+  const match = html.match(/"shortDescription":"((?:\\.|[^"\\])*)"/);
+  if (!match) return "";
+
+  try {
+    const decoded = JSON.parse(`"${match[1]}"`) as string;
+    return decoded.replace(/\r/g, "").trim();
+  } catch {
+    return cleanText(match[1].replace(/\\n/g, "\n"));
+  }
 }
 
 function normalizeLang(lang: string): string {
@@ -596,6 +648,7 @@ serve(async (req) => {
 
       let sourceLang = "auto";
       let segments: CaptionSegment[] = [];
+      let transcriptMode = "captions";
 
       try {
         const tracks = await fetchCaptionTracks(videoId);
@@ -657,6 +710,24 @@ serve(async (req) => {
         }
 
         if (!segments.length) {
+          try {
+            const watchHtml = await fetchWatchPageHtml(videoId);
+            const shortDescription = extractShortDescriptionFromWatchHtml(watchHtml);
+            const title = await fetchVideoTitle(videoId);
+            const fallbackSource = shortDescription || `Video başlığı: ${title}`;
+            const fallbackSegments = buildSegmentsFromPlainText(fallbackSource);
+
+            if (fallbackSegments.length) {
+              segments = fallbackSegments;
+              sourceLang = "auto";
+              transcriptMode = "description_fallback";
+            }
+          } catch (e) {
+            capturedError = e instanceof Error ? e.message : capturedError;
+          }
+        }
+
+        if (!segments.length) {
           throw new Error(`Videoda transcript/caption bulunamadı. ${capturedError ? `(${capturedError})` : ""}`.trim());
         }
       }
@@ -671,6 +742,7 @@ serve(async (req) => {
           videoId,
           title,
           sourceLang,
+          transcriptMode,
           transcript,
           segments,
         }),
