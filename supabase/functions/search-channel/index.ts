@@ -56,6 +56,114 @@ function decodeXml(text: string): string {
     .replace(/&#39;/g, "'");
 }
 
+function textFromNode(node: any): string {
+  if (!node) return '';
+  if (typeof node === 'string') return node;
+  if (typeof node.simpleText === 'string') return node.simpleText;
+  if (Array.isArray(node.runs)) return node.runs.map((r: any) => String(r?.text || '')).join('');
+  return '';
+}
+
+function extractYtInitialData(html: string): any | null {
+  const match = html.match(/var ytInitialData\s*=\s*(\{[\s\S]*?\});<\/script>/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+function collectVideoRenderers(node: any, out: any[] = []): any[] {
+  if (!node || typeof node !== 'object') return out;
+  if (node.videoRenderer && typeof node.videoRenderer === 'object') {
+    out.push(node.videoRenderer);
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) collectVideoRenderers(item, out);
+    return out;
+  }
+  for (const key of Object.keys(node)) {
+    collectVideoRenderers((node as any)[key], out);
+  }
+  return out;
+}
+
+function parseRelativeTimeToIso(relativeText: string): string | null {
+  const text = relativeText.toLowerCase().trim();
+  const m = text.match(/(\d+)\s+(minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)\s+ago/);
+  if (!m) return null;
+  const value = Number.parseInt(m[1], 10);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  const d = new Date();
+  const unit = m[2];
+  if (unit.startsWith('minute')) d.setMinutes(d.getMinutes() - value);
+  else if (unit.startsWith('hour')) d.setHours(d.getHours() - value);
+  else if (unit.startsWith('day')) d.setDate(d.getDate() - value);
+  else if (unit.startsWith('week')) d.setDate(d.getDate() - (value * 7));
+  else if (unit.startsWith('month')) d.setMonth(d.getMonth() - value);
+  else if (unit.startsWith('year')) d.setFullYear(d.getFullYear() - value);
+  return d.toISOString();
+}
+
+async function fetchChannelPreviewFromPage(channelUrl: string) {
+  try {
+    const base = channelUrl.replace(/\/$/, '');
+    const videosUrl = base.includes('/videos')
+      ? `${base}${base.includes('?') ? '&' : '?'}hl=en`
+      : `${base}/videos?view=0&sort=dd&flow=grid&hl=en`;
+    const response = await fetch(videosUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!response.ok) return null;
+    const html = await response.text();
+    const initialData = extractYtInitialData(html);
+    const renderers = initialData ? collectVideoRenderers(initialData) : [];
+    const videos = renderers.slice(0, 5).map((renderer: any) => {
+      const videoId = String(renderer.videoId || '').trim();
+      const title = textFromNode(renderer.title);
+      const thumbnails = renderer.thumbnail?.thumbnails || [];
+      const thumbnailUrl = thumbnails.length > 0 ? (thumbnails[thumbnails.length - 1].url || '') : '';
+      return {
+        video_id: videoId,
+        title,
+        thumbnail_url: thumbnailUrl,
+        views: parseCount(textFromNode(renderer.viewCountText)),
+        likes: 0,
+        comments: 0,
+        published_at: parseRelativeTimeToIso(textFromNode(renderer.publishedTimeText))
+      };
+    }).filter((v: any) => v.video_id && v.title);
+
+    const channelId =
+      (html.match(/"channelId":"(UC[a-zA-Z0-9_-]{22})"/) || [])[1] ||
+      (html.match(/https:\/\/www\.youtube\.com\/channel\/(UC[a-zA-Z0-9_-]{22})/) || [])[1] ||
+      '';
+    const channelName = decodeXml(((html.match(/<meta property="og:title" content="([^"]+)"/) || [])[1] || '').trim());
+    const thumbnailUrl = ((html.match(/<meta property="og:image" content="([^"]+)"/) || [])[1] || '').trim();
+    const subscribers = parseCount(
+      ((html.match(/"subscriberCountText":\{"simpleText":"([^"]+)"\}/) || [])[1]) ||
+      ((html.match(/"subscriberCountText":\{"accessibility":\{"accessibilityData":\{"label":"([^"]+)"\}\}/) || [])[1]) ||
+      '0'
+    );
+    const videoCount = parseCount(
+      ((html.match(/"videosCountText":\{"runs":\[\{"text":"([^"]+)"/) || [])[1]) ||
+      String(videos.length)
+    );
+
+    return {
+      channel_id: channelId,
+      channel_name: channelName || 'Unknown Channel',
+      thumbnail_url: thumbnailUrl,
+      subscribers,
+      total_views: 0,
+      video_count: videoCount || videos.length,
+      channel_url: channelUrl,
+      videos
+    };
+  } catch {
+    return null;
+  }
+}
+
 function normalizeText(text: unknown): string {
   return String(text ?? '').trim().toLowerCase();
 }
@@ -358,6 +466,17 @@ serve(async (req) => {
       if (rss) {
         videos = rss.videos;
         fallbackChannelName = rss.channelName;
+      }
+    }
+
+    const needsEnhance = videos.length === 0 || videos.every((v) => (v.views || 0) === 0);
+    if (needsEnhance) {
+      const pagePreview = await fetchChannelPreviewFromPage(channelUrl);
+      if (pagePreview) {
+        return new Response(
+          JSON.stringify({ success: true, channel: pagePreview }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
     }
 
