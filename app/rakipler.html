@@ -630,7 +630,7 @@
             <div class="toolbar">
               <button class="btn-refresh" id="refreshBtn" type="button">Refresh Videos</button>
               <label class="include-toggle">
-                <input id="includeMyChannel" type="checkbox" />
+              <input id="includeMyChannel" name="includeMyChannel" type="checkbox" />
                 <span>Include my channel</span>
               </label>
             </div>
@@ -672,11 +672,11 @@
             <h3>Add Competitors</h3>
             <p>Rakip kanal ekleyin ve performanslarını izleyin.</p>
             <div class="input-inline">
-              <input id="channelInput" type="text" placeholder="@kanaladi veya YouTube URL" />
+              <input id="channelInput" name="channelQuery" type="text" placeholder="@kanaladi veya YouTube URL" autocomplete="off" />
             </div>
             <div class="input-actions" style="margin-top: 8px;">
               <button class="btn-secondary" id="previewBtn" type="button">Önizle</button>
-              <button class="btn-primary" id="addCompetitorBtn" type="button">Ekle (2 Token)</button>
+              <button class="btn-primary" id="addCompetitorBtn" type="button">Rakip Ekle</button>
             </div>
             <div class="channel-preview" id="channelPreview"></div>
             <div class="limit-box" id="planNotice">
@@ -694,7 +694,7 @@
               <span style="font-size: 12px; color: var(--text-muted);" id="selectedCount">0 seçili</span>
             </div>
             <label class="comp-select-all">
-              <input id="selectAllComparison" type="checkbox" />
+              <input id="selectAllComparison" name="selectAllComparison" type="checkbox" />
               <span>Compare için tümünü seç</span>
             </label>
             <div class="comp-list" id="competitorList"></div>
@@ -961,7 +961,7 @@
         const checked = selectedCompetitorIds.has(comp.id) ? "checked" : "";
         return `
           <div class="comp-item">
-            <input type="checkbox" ${checked} onchange="toggleCompetitorSelection('${comp.id}')" />
+            <input type="checkbox" name="competitorSelection" value="${comp.id}" ${checked} onchange="toggleCompetitorSelection('${comp.id}')" />
             <div>
               <div class="comp-name">${comp.channel_name || "Bilinmeyen Kanal"}</div>
               <div class="comp-stat">${formatNumber(comp.subscribers)} abone - ${comp.video_count || 0} video</div>
