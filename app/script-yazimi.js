@@ -102,7 +102,7 @@ async function handleExtract() {
     $("transcriptOutput").value = res.transcript || "";
     const modeNote = res.transcriptMode === "description_fallback"
       ? " | Mod: Açıklamadan üretildi"
-      : res.transcriptMode === "apify_fallback"
+      : (res.transcriptMode === "apify_fallback" || res.transcriptMode === "apify_only")
         ? " | Mod: Apify"
         : " | Mod: Caption";
     $("extractMeta").textContent = `Video: ${pipelineState.title || "Bilinmiyor"} | Kaynak dil: ${pipelineState.sourceLang || "Bilinmiyor"} | Satır: ${pipelineState.extractedSegments.length}${modeNote}`;

@@ -451,11 +451,8 @@ async function fetchApifyTranscript(videoUrl: string): Promise<ApifyOutput | nul
   const actorId = Deno.env.get("APIFY_YT_ACTOR_ID") || "Uwpce1RSXlrzF6WBA";
   const runInput = {
     youtube_url: videoUrl,
-    language: null,
-    channel_url: null,
+    language: "en",
     max_videos: 1,
-    start_date: null,
-    end_date: null,
     include_transcript_text: true,
   };
 
@@ -466,7 +463,8 @@ async function fetchApifyTranscript(videoUrl: string): Promise<ApifyOutput | nul
   });
 
   if (!runResp.ok) {
-    throw new Error(`Apify run hatası (${runResp.status}).`);
+    const errText = await runResp.text();
+    throw new Error(`Apify run hatası (${runResp.status}): ${errText.slice(0, 220)}`);
   }
 
   const runData = await runResp.json();
@@ -734,104 +732,14 @@ serve(async (req) => {
       const videoId = extractVideoId(url);
       if (!videoId) throw new Error("Geçerli bir YouTube video linki girilmedi.");
 
-      let sourceLang = "auto";
-      let segments: CaptionSegment[] = [];
-      let transcriptMode = "captions";
-
-      try {
-        const tracks = await fetchCaptionTracks(videoId);
-        const selected = chooseTrack(tracks, "tr");
-        sourceLang = normalizeLang(safeStr(selected.lang_code) || "auto");
-        segments = await fetchCaptionSegments(videoId, selected);
-      } catch {
-        const fallbackLangs = ["tr", "en"];
-        let capturedError = "";
-
-        for (const lang of fallbackLangs) {
-          try {
-            segments = await fetchCaptionSegmentsByLang(videoId, lang);
-            sourceLang = lang;
-            break;
-          } catch (e) {
-            capturedError = e instanceof Error ? e.message : "fallback failed";
-          }
-        }
-
-        if (!segments.length) {
-          try {
-            const watchTracks = await fetchWatchPageCaptionTracks(videoId);
-            const prioritized = [...watchTracks].sort((a, b) => {
-              const score = (t: WatchCaptionTrack) => {
-                const lang = normalizeLang(t.languageCode);
-                if (lang === "tr") return 0;
-                if (lang === "en") return 1;
-                if (safeStr(t.kind).toLowerCase() === "asr") return 3;
-                return 2;
-              };
-              return score(a) - score(b);
-            });
-
-            for (const track of prioritized.slice(0, 8)) {
-              try {
-                segments = await fetchCaptionSegmentsFromBaseUrl(track.baseUrl);
-                sourceLang = normalizeLang(track.languageCode) || "auto";
-                if (segments.length) break;
-              } catch {
-                // Try translated fallback from this track.
-              }
-
-              for (const tlang of ["tr", "en"]) {
-                try {
-                  segments = await fetchCaptionSegmentsFromBaseUrl(track.baseUrl, tlang);
-                  sourceLang = tlang;
-                  break;
-                } catch (e) {
-                  capturedError = e instanceof Error ? e.message : capturedError;
-                }
-              }
-
-              if (segments.length) break;
-            }
-          } catch (e) {
-            capturedError = e instanceof Error ? e.message : capturedError;
-          }
-        }
-
-        if (!segments.length) {
-          try {
-            const apifyResult = await fetchApifyTranscript(url);
-            if (apifyResult && apifyResult.segments.length) {
-              segments = apifyResult.segments;
-              sourceLang = apifyResult.sourceLang || "auto";
-              transcriptMode = "apify_fallback";
-            }
-          } catch (e) {
-            capturedError = e instanceof Error ? e.message : capturedError;
-          }
-        }
-
-        if (!segments.length) {
-          try {
-            const watchHtml = await fetchWatchPageHtml(videoId);
-            const shortDescription = extractShortDescriptionFromWatchHtml(watchHtml);
-            const title = await fetchVideoTitle(videoId);
-            const fallbackSource = shortDescription || `Video başlığı: ${title}`;
-            const fallbackSegments = buildSegmentsFromPlainText(fallbackSource);
-
-            if (fallbackSegments.length) {
-              segments = fallbackSegments;
-              sourceLang = "auto";
-              transcriptMode = "description_fallback";
-            }
-          } catch (e) {
-            capturedError = e instanceof Error ? e.message : capturedError;
-          }
-        }
-
-        if (!segments.length) {
-          throw new Error(`Videoda transcript/caption bulunamadı. ${capturedError ? `(${capturedError})` : ""}`.trim());
-        }
+      const apifyResult = await fetchApifyTranscript(url);
+      if (!apifyResult || !apifyResult.segments.length) {
+        throw new Error("Apify transcript bulunamadı.");
       }
+
+      const sourceLang = apifyResult.sourceLang || "auto";
+      const segments = apifyResult.segments;
+      const transcriptMode = "apify_only";
 
       const transcript = transcriptFromSegments(segments);
       const title = await fetchVideoTitle(videoId);
