@@ -595,6 +595,45 @@ async function callOpenRouter(prompt: string): Promise<string> {
   throw new Error(`Çeviri modeli cevap veremedi: ${lastErr}`);
 }
 
+async function translateWithGoogle(text: string, sourceLang: string, targetLang: string): Promise<string> {
+  const src = normalizeLang(sourceLang);
+  const sl = src === "auto" ? "auto" : src;
+  const tl = normalizeLang(targetLang) || "en";
+
+  const url = new URL("https://translate.googleapis.com/translate_a/single");
+  url.searchParams.set("client", "gtx");
+  url.searchParams.set("sl", sl);
+  url.searchParams.set("tl", tl);
+  url.searchParams.set("dt", "t");
+  url.searchParams.set("q", text);
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Google Translate HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const parts = Array.isArray(data?.[0]) ? data[0] : [];
+  const translated = parts
+    .map((p: unknown) => {
+      if (Array.isArray(p) && typeof p[0] === "string") return p[0];
+      return "";
+    })
+    .join("")
+    .trim();
+
+  if (!translated) {
+    throw new Error("Google Translate boş yanıt döndü");
+  }
+
+  return translated;
+}
+
 function parseJsonArray(content: string): unknown[] {
   const cleaned = content.replace(/```json|```/g, "").trim();
   const start = cleaned.indexOf("[");
@@ -613,24 +652,19 @@ async function translateTexts(texts: string[], sourceLang: string, targetLang: s
   if (!texts.length) return [];
   if (src === tgt && src !== "auto") return texts;
 
-  const batchSize = 70;
   const out: string[] = [];
 
-  for (let i = 0; i < texts.length; i += batchSize) {
-    const batch = texts.slice(i, i + batchSize);
-    const prompt = `Translate each item in the JSON array from ${src} to ${tgt}. Keep meaning natural for spoken script. Return only JSON array of strings with same length and order.\n\nINPUT:\n${JSON.stringify(batch)}`;
-    const content = await callOpenRouter(prompt);
-    const parsed = parseJsonArray(content);
-    const translated = parsed.map((item, idx) => {
-      const candidate = typeof item === "string" ? item : "";
-      return cleanText(candidate) || batch[idx];
-    });
-
-    if (translated.length !== batch.length) {
-      throw new Error("Çeviri çıktısı satır sayısı beklenenle uyuşmuyor.");
+  for (const text of texts) {
+    try {
+      const googleResult = await translateWithGoogle(text, src, tgt);
+      out.push(cleanText(googleResult) || text);
+    } catch {
+      const prompt = `Translate this text from ${src} to ${tgt}. Keep meaning natural for spoken script. Return only a JSON array with one translated string.\n\nINPUT:\n${JSON.stringify([text])}`;
+      const content = await callOpenRouter(prompt);
+      const parsed = parseJsonArray(content);
+      const candidate = typeof parsed[0] === "string" ? parsed[0] : "";
+      out.push(cleanText(candidate) || text);
     }
-
-    out.push(...translated);
   }
 
   return out;
