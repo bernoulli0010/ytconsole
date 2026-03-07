@@ -148,6 +148,46 @@ async function fetchRssFallback(channelId: string) {
   return { channelName, videos };
 }
 
+async function fetchChannelPageMeta(channelUrl: string): Promise<{
+  channelId: string;
+  channelName: string;
+  thumbnailUrl: string;
+} | null> {
+  try {
+    const response = await fetch(channelUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!response.ok) return null;
+    const html = await response.text();
+    const channelId =
+      (html.match(/"channelId":"(UC[a-zA-Z0-9_-]{22})"/) || [])[1] ||
+      (html.match(/https:\/\/www\.youtube\.com\/channel\/(UC[a-zA-Z0-9_-]{22})/) || [])[1] ||
+      '';
+    const channelName = decodeXml(((html.match(/<meta property="og:title" content="([^"]+)"/) || [])[1] || '').trim());
+    const thumbnailUrl = ((html.match(/<meta property="og:image" content="([^"]+)"/) || [])[1] || '').trim();
+    return { channelId, channelName, thumbnailUrl };
+  } catch {
+    return null;
+  }
+}
+
+async function buildFallbackChannelPreview(channelUrl: string) {
+  const pageMeta = await fetchChannelPageMeta(channelUrl);
+  const channelId = pageMeta?.channelId || await resolveChannelId(channelUrl) || '';
+  if (!channelId) return null;
+  const rss = await fetchRssFallback(channelId);
+  if (!rss) return null;
+
+  return {
+    channel_id: channelId,
+    channel_name: pageMeta?.channelName || rss.channelName || 'Unknown Channel',
+    thumbnail_url: pageMeta?.thumbnailUrl || (rss.videos[0]?.thumbnail_url || ''),
+    subscribers: 0,
+    total_views: 0,
+    video_count: rss.videos.length,
+    channel_url: channelUrl,
+    videos: rss.videos
+  };
+}
+
 function getChannelUrl(input: string): string {
   const trimmed = input.trim();
   if (trimmed.startsWith('http')) return trimmed;
@@ -201,6 +241,13 @@ serve(async (req) => {
     });
 
     if (!runResponse.ok) {
+      const fallback = await buildFallbackChannelPreview(channelUrl);
+      if (fallback) {
+        return new Response(
+          JSON.stringify({ success: true, channel: fallback }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return new Response(
         JSON.stringify({ error: 'Kanal araması başarısız oldu' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -218,6 +265,13 @@ serve(async (req) => {
 
       if (statusData.data.status === 'SUCCEEDED') break;
       if (statusData.data.status === 'FAILED' || statusData.data.status === 'ABORTED') {
+        const fallback = await buildFallbackChannelPreview(channelUrl);
+        if (fallback) {
+          return new Response(
+            JSON.stringify({ success: true, channel: fallback }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
         return new Response(
           JSON.stringify({ error: 'Kanal verisi alınamadı' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -231,6 +285,13 @@ serve(async (req) => {
     const items = await itemsResponse.json();
 
     if (!items || items.length === 0) {
+      const fallback = await buildFallbackChannelPreview(channelUrl);
+      if (fallback) {
+        return new Response(
+          JSON.stringify({ success: true, channel: fallback }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return new Response(
         JSON.stringify({ success: true, channel: null }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -283,6 +344,14 @@ serve(async (req) => {
       safeStr(first.channelId || first.authorChannelId || first.ownerChannelId || first.channel?.id) ||
       extractChannelIdFromUrl(safeStr(first.channelUrl || first.authorUrl || first.channel?.url)) ||
       await resolveChannelId(channelUrl) || '';
+
+    if (!channelId) {
+      const fallback = await buildFallbackChannelPreview(channelUrl);
+      return new Response(
+        JSON.stringify({ success: true, channel: fallback }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     let fallbackChannelName = '';
     if (videos.length === 0 && channelId) {
       const rss = await fetchRssFallback(channelId);

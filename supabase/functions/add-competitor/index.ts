@@ -182,6 +182,52 @@ async function fetchRssFallback(channelId: string): Promise<{
   };
 }
 
+async function fetchChannelPageMeta(channelUrl: string): Promise<{
+  channelId: string;
+  channelName: string;
+  thumbnailUrl: string;
+  description: string;
+} | null> {
+  try {
+    const response = await fetch(channelUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!response.ok) return null;
+    const html = await response.text();
+    const channelId =
+      (html.match(/"channelId":"(UC[a-zA-Z0-9_-]{22})"/) || [])[1] ||
+      (html.match(/https:\/\/www\.youtube\.com\/channel\/(UC[a-zA-Z0-9_-]{22})/) || [])[1] ||
+      '';
+    const channelName = decodeXml(((html.match(/<meta property="og:title" content="([^"]+)"/) || [])[1] || '').trim());
+    const thumbnailUrl = ((html.match(/<meta property="og:image" content="([^"]+)"/) || [])[1] || '').trim();
+    const description = decodeXml(((html.match(/<meta property="og:description" content="([^"]+)"/) || [])[1] || '').trim());
+    return { channelId, channelName, thumbnailUrl, description };
+  } catch {
+    return null;
+  }
+}
+
+async function buildFallbackChannelData(channelUrl: string) {
+  const pageMeta = await fetchChannelPageMeta(channelUrl);
+  const channelId = pageMeta?.channelId || await resolveChannelId(channelUrl) || '';
+  if (!channelId) return null;
+
+  const rss = await fetchRssFallback(channelId);
+  if (!rss) return null;
+
+  const thumbnailUrl = pageMeta?.thumbnailUrl || (rss.videos[0]?.thumbnailUrl || '');
+  const channelName = pageMeta?.channelName || rss.channelName || 'Unknown Channel';
+
+  return {
+    channelId,
+    channelName,
+    thumbnailUrl,
+    subscribers: 0,
+    totalViews: 0,
+    videoCount: rss.videos.length,
+    description: pageMeta?.description || '',
+    videos: rss.videos
+  };
+}
+
 function safeDate(val: unknown): string | null {
   if (!val) return null;
   const d = new Date(String(val));
@@ -293,7 +339,7 @@ async function fetchChannelWithApify(channelUrl: string): Promise<{
 
   if (!runResponse.ok) {
     console.error('Apify run error:', await runResponse.text());
-    return null;
+    return buildFallbackChannelData(channelUrl);
   }
 
   const runData = await runResponse.json();
@@ -311,7 +357,7 @@ async function fetchChannelWithApify(channelUrl: string): Promise<{
       break;
     } else if (statusData.data.status === 'FAILED' || statusData.data.status === 'ABORTED') {
       console.error('Apify run failed:', statusData.data.status);
-      return null;
+      return buildFallbackChannelData(channelUrl);
     }
     
     attempts++;
@@ -323,13 +369,13 @@ async function fetchChannelWithApify(channelUrl: string): Promise<{
   
   if (!itemsResponse.ok) {
     console.error('Apify dataset error:', await itemsResponse.text());
-    return null;
+    return buildFallbackChannelData(channelUrl);
   }
 
   const items = await itemsResponse.json();
   
   if (!items || items.length === 0) {
-    return null;
+    return buildFallbackChannelData(channelUrl);
   }
 
   const channel = items[0];
@@ -385,6 +431,10 @@ async function fetchChannelWithApify(channelUrl: string): Promise<{
     extractChannelIdFromUrl(safeStr(first.channelUrl || first.authorUrl || first.channel?.url)) ||
     await resolveChannelId(channelUrl) ||
     '';
+
+  if (!channelId) {
+    return buildFallbackChannelData(channelUrl);
+  }
 
   let videos = enrichVideoMetrics(Array.from(uniqueByVideo.values()).slice(0, 10));
   let fallbackChannelName = '';
