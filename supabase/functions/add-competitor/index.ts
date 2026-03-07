@@ -23,17 +23,31 @@ function toInt(val: unknown): number {
 }
 
 function parseCount(val: unknown): number {
-  const raw = String(val ?? "").trim();
+  const raw = String(val ?? '').trim();
   if (!raw) return 0;
-  const normalized = raw.replace(/,/g, "").replace(/\s+/g, "").toUpperCase();
-  const match = normalized.match(/([0-9]+(?:\.[0-9]+)?)([KMB])?/);
-  if (!match) return toInt(raw);
-  const base = Number.parseFloat(match[1]);
+
+  const lower = raw.toLowerCase();
+  const compact = lower.replace(/\s+/g, '');
+  const isThousand = /\b(k|bin|b)\b/.test(lower) || compact.endsWith('k') || compact.endsWith('b');
+  const isMillion = /\b(m|mn|milyon)\b/.test(lower) || compact.endsWith('m') || compact.includes('mn');
+  const isBillion = /\b(bn|billion|milyar)\b/.test(lower) || compact.includes('bn');
+
+  const numberPart = (lower.match(/[0-9][0-9.,]*/) || [])[0] || '';
+  if (!numberPart) return toInt(raw);
+
+  let base = 0;
+  if (isThousand || isMillion || isBillion) {
+    const normalized = numberPart.replace(/\./g, '').replace(',', '.');
+    base = Number.parseFloat(normalized);
+  } else {
+    const normalized = numberPart.replace(/[^0-9]/g, '');
+    base = Number.parseInt(normalized || '0', 10);
+  }
+
   if (!Number.isFinite(base)) return toInt(raw);
-  const suffix = match[2] || "";
-  if (suffix === "K") return Math.round(base * 1_000);
-  if (suffix === "M") return Math.round(base * 1_000_000);
-  if (suffix === "B") return Math.round(base * 1_000_000_000);
+  if (isBillion) return Math.round(base * 1_000_000_000);
+  if (isMillion) return Math.round(base * 1_000_000);
+  if (isThousand) return Math.round(base * 1_000);
   return Math.round(base);
 }
 
@@ -65,7 +79,7 @@ function textFromNode(node: any): string {
 }
 
 function extractYtInitialData(html: string): any | null {
-  const match = html.match(/var ytInitialData\s*=\s*(\{[\s\S]*?\});<\/script>/);
+  const match = html.match(/var ytInitialData\s*=\s*(\{[\s\S]*?\});/);
   if (!match) return null;
   try {
     return JSON.parse(match[1]);
@@ -91,18 +105,18 @@ function collectVideoRenderers(node: any, out: any[] = []): any[] {
 
 function parseRelativeTimeToIso(relativeText: string): string | null {
   const text = relativeText.toLowerCase().trim();
-  const m = text.match(/(\d+)\s+(minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)\s+ago/);
+  const m = text.match(/(\d+)\s+(minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years|minute|dakika|saat|gun|gün|hafta|ay|yıl|yil)\s*(ago|önce)?/);
   if (!m) return null;
   const value = Number.parseInt(m[1], 10);
   if (!Number.isFinite(value) || value <= 0) return null;
   const d = new Date();
   const unit = m[2];
-  if (unit.startsWith('minute')) d.setMinutes(d.getMinutes() - value);
-  else if (unit.startsWith('hour')) d.setHours(d.getHours() - value);
-  else if (unit.startsWith('day')) d.setDate(d.getDate() - value);
-  else if (unit.startsWith('week')) d.setDate(d.getDate() - (value * 7));
-  else if (unit.startsWith('month')) d.setMonth(d.getMonth() - value);
-  else if (unit.startsWith('year')) d.setFullYear(d.getFullYear() - value);
+  if (unit.startsWith('minute') || unit.includes('dakika')) d.setMinutes(d.getMinutes() - value);
+  else if (unit.startsWith('hour') || unit.includes('saat')) d.setHours(d.getHours() - value);
+  else if (unit.startsWith('day') || unit.includes('gün') || unit.includes('gun')) d.setDate(d.getDate() - value);
+  else if (unit.startsWith('week') || unit.includes('hafta')) d.setDate(d.getDate() - (value * 7));
+  else if (unit.startsWith('month') || unit === 'ay') d.setMonth(d.getMonth() - value);
+  else if (unit.startsWith('year') || unit.includes('yıl') || unit.includes('yil')) d.setFullYear(d.getFullYear() - value);
   return d.toISOString();
 }
 

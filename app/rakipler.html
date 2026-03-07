@@ -872,7 +872,8 @@
     async function loadCompetitors(session, refresh = false) {
       const data = await apiPost("fetch-all-competitors", {
         refresh,
-        refresh_window_hours: 12
+        refresh_window_hours: 12,
+        force: refresh
       }, session);
 
       if (!data.success) {
