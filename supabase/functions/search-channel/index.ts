@@ -21,6 +21,91 @@ function toInt(val: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function parseCount(val: unknown): number {
+  const raw = String(val ?? '').trim();
+  if (!raw) return 0;
+  const normalized = raw.replace(/,/g, '').replace(/\s+/g, '').toUpperCase();
+  const match = normalized.match(/([0-9]+(?:\.[0-9]+)?)([KMB])?/);
+  if (!match) return toInt(raw);
+  const base = Number.parseFloat(match[1]);
+  if (!Number.isFinite(base)) return toInt(raw);
+  const suffix = match[2] || '';
+  if (suffix === 'K') return Math.round(base * 1_000);
+  if (suffix === 'M') return Math.round(base * 1_000_000);
+  if (suffix === 'B') return Math.round(base * 1_000_000_000);
+  return Math.round(base);
+}
+
+function extractVideoId(value: unknown): string {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  const direct = text.match(/^[a-zA-Z0-9_-]{11}$/);
+  if (direct) return direct[0];
+  const urlMatch = text.match(/(?:v=|\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (urlMatch) return urlMatch[1];
+  return '';
+}
+
+function decodeXml(text: string): string {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+async function resolveChannelId(input: string): Promise<string | null> {
+  const trimmed = input.trim();
+  if (trimmed.startsWith('UC') && trimmed.length > 20) return trimmed;
+
+  const url = getChannelUrl(trimmed);
+  try {
+    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!response.ok) return null;
+    const html = await response.text();
+    const m = html.match(/"channelId":"(UC[a-zA-Z0-9_-]{22})"/);
+    if (m) return m[1];
+    const m2 = html.match(/https:\/\/www\.youtube\.com\/channel\/(UC[a-zA-Z0-9_-]{22})/);
+    return m2 ? m2[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchRssFallback(channelId: string) {
+  const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+  const response = await fetch(rssUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  if (!response.ok) return null;
+  const xml = await response.text();
+
+  const titleMatch = xml.match(/<title>([^<]*)<\/title>/);
+  const channelName = titleMatch ? decodeXml(titleMatch[1].replace(' - YouTube', '')) : 'Unknown Channel';
+
+  const videos: any[] = [];
+  const entryRegex = /<entry[^>]*>([\s\S]*?)<\/entry>/g;
+  let match: RegExpExecArray | null;
+  while ((match = entryRegex.exec(xml)) !== null && videos.length < 5) {
+    const entry = match[1];
+    const videoId = (entry.match(/<yt:videoId>([^<]*)<\/yt:videoId>/) || [])[1] || '';
+    const title = decodeXml(((entry.match(/<title>([^<]*)<\/title>/) || [])[1] || '').trim());
+    const publishedAt = ((entry.match(/<published>([^<]*)<\/published>/) || [])[1] || '').trim() || null;
+    const thumb = ((entry.match(/<media:thumbnail[^>]*url="([^"]+)"/) || [])[1] || '').trim();
+    if (!videoId || !title) continue;
+    videos.push({
+      video_id: videoId,
+      title,
+      thumbnail_url: thumb || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+      views: 0,
+      likes: 0,
+      comments: 0,
+      published_at: publishedAt
+    });
+  }
+
+  return { channelName, videos };
+}
+
 function getChannelUrl(input: string): string {
   const trimmed = input.trim();
   if (trimmed.startsWith('http')) return trimmed;
@@ -115,26 +200,42 @@ serve(async (req) => {
     }
 
     const channel = items[0];
-    const videos = (channel.latestVideos || []).slice(0, 5).map((video: any) => ({
-      video_id: video.id || video.videoId || '',
-      title: video.title || '',
+    const candidateVideos = Array.isArray(channel.latestVideos)
+      ? channel.latestVideos
+      : Array.isArray(channel.videos)
+        ? channel.videos
+        : [];
+
+    let videos = candidateVideos.slice(0, 8).map((video: any) => ({
+      video_id: extractVideoId(video.id || video.videoId || video.url || video.videoUrl || ''),
+      title: safeStr(video.title || video.name || ''),
       thumbnail_url: video.thumbnailUrl || video.thumbnail || '',
-      views: toInt(video.viewCount || video.views || 0),
-      likes: toInt(video.likeCount || video.likes || 0),
-      comments: toInt(video.commentCount || video.comments || 0),
+      views: parseCount(video.viewCount || video.views || 0),
+      likes: parseCount(video.likeCount || video.likes || 0),
+      comments: parseCount(video.commentCount || video.comments || 0),
       published_at: video.publishedAt || video.uploadDate || null
-    }));
+    })).filter((v) => v.video_id && v.title).slice(0, 5);
+
+    const channelId = channel.channelId || channel.id || await resolveChannelId(channelUrl) || '';
+    let fallbackChannelName = '';
+    if (videos.length === 0 && channelId) {
+      const rss = await fetchRssFallback(channelId);
+      if (rss) {
+        videos = rss.videos;
+        fallbackChannelName = rss.channelName;
+      }
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         channel: {
-          channel_id: channel.channelId || channel.id || '',
-          channel_name: channel.title || channel.channelTitle || 'Unknown Channel',
+          channel_id: channelId,
+          channel_name: channel.title || channel.channelTitle || fallbackChannelName || 'Unknown Channel',
           thumbnail_url: channel.avatarUrl || channel.thumbnailUrl || '',
-          subscribers: toInt(channel.subscriberCount || channel.subscribers || 0),
-          total_views: toInt(channel.totalViews || channel.views || 0),
-          video_count: toInt(channel.videoCount || channel.videos || 0),
+          subscribers: parseCount(channel.subscriberCount || channel.subscribers || 0),
+          total_views: parseCount(channel.totalViews || channel.views || 0),
+          video_count: parseCount(channel.videoCount || channel.videos || 0),
           channel_url: channelUrl,
           videos
         }

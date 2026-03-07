@@ -17,6 +17,100 @@ function toInt(val: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function parseCount(val: unknown): number {
+  const raw = String(val ?? "").trim();
+  if (!raw) return 0;
+  const normalized = raw.replace(/,/g, "").replace(/\s+/g, "").toUpperCase();
+  const match = normalized.match(/([0-9]+(?:\.[0-9]+)?)([KMB])?/);
+  if (!match) return toInt(raw);
+  const base = Number.parseFloat(match[1]);
+  if (!Number.isFinite(base)) return toInt(raw);
+  const suffix = match[2] || "";
+  if (suffix === "K") return Math.round(base * 1_000);
+  if (suffix === "M") return Math.round(base * 1_000_000);
+  if (suffix === "B") return Math.round(base * 1_000_000_000);
+  return Math.round(base);
+}
+
+function extractVideoId(value: unknown): string {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  const direct = text.match(/^[a-zA-Z0-9_-]{11}$/);
+  if (direct) return direct[0];
+  const urlMatch = text.match(/(?:v=|\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (urlMatch) return urlMatch[1];
+  return "";
+}
+
+function decodeXml(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+async function fetchRssFallback(channelId: string): Promise<{
+  channelName: string;
+  videos: {
+    videoId: string;
+    title: string;
+    thumbnailUrl: string;
+    views: number;
+    likes: number;
+    comments: number;
+    publishedAt: string | null;
+    publishedHoursAgo: number | null;
+    vph: number;
+    engagementRate: number;
+    outlierScore: number;
+  }[];
+} | null> {
+  const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+  const response = await fetch(rssUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  if (!response.ok) return null;
+  const xml = await response.text();
+
+  const titleMatch = xml.match(/<title>([^<]*)<\/title>/);
+  const channelName = titleMatch ? decodeXml(titleMatch[1].replace(' - YouTube', '')) : 'Unknown Channel';
+
+  const entries: Array<{
+    videoId: string;
+    title: string;
+    thumbnailUrl: string;
+    views: number;
+    likes: number;
+    comments: number;
+    publishedAt: string | null;
+  }> = [];
+
+  const entryRegex = /<entry[^>]*>([\s\S]*?)<\/entry>/g;
+  let match: RegExpExecArray | null;
+  while ((match = entryRegex.exec(xml)) !== null && entries.length < 10) {
+    const entry = match[1];
+    const videoId = (entry.match(/<yt:videoId>([^<]*)<\/yt:videoId>/) || [])[1] || '';
+    const title = decodeXml(((entry.match(/<title>([^<]*)<\/title>/) || [])[1] || '').trim());
+    const publishedAt = ((entry.match(/<published>([^<]*)<\/published>/) || [])[1] || '').trim() || null;
+    const thumb = ((entry.match(/<media:thumbnail[^>]*url="([^"]+)"/) || [])[1] || '').trim();
+    if (!videoId || !title) continue;
+    entries.push({
+      videoId,
+      title,
+      thumbnailUrl: thumb || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+      views: 0,
+      likes: 0,
+      comments: 0,
+      publishedAt
+    });
+  }
+
+  return {
+    channelName,
+    videos: enrichVideoMetrics(entries)
+  };
+}
+
 function safeDate(val: unknown): string | null {
   if (!val) return null;
   const d = new Date(String(val));
@@ -138,24 +232,39 @@ async function fetchChannelWithApify(channelUrl: string): Promise<{
   if (!items || items.length === 0) return null;
 
   const channel = items[0];
-  const rawVideos = (channel.latestVideos || []).map((v: any) => ({
-    videoId: v.id || v.videoId || '',
-    title: v.title || '',
-    thumbnailUrl: v.thumbnailUrl || v.thumbnail || '',
-    views: toInt(v.viewCount || v.views || '0'),
-    likes: toInt(v.likeCount || v.likes || '0'),
-    comments: toInt(v.commentCount || v.comments || '0'),
-    publishedAt: v.publishedAt || v.uploadDate || ''
-  })).filter((v: { videoId: string }) => Boolean(v.videoId));
+  const candidateVideos = Array.isArray(channel.latestVideos)
+    ? channel.latestVideos
+    : Array.isArray(channel.videos)
+      ? channel.videos
+      : [];
 
-  const videos = enrichVideoMetrics(rawVideos);
+  const rawVideos = candidateVideos.map((v: any) => ({
+    videoId: extractVideoId(v.id || v.videoId || v.url || v.videoUrl || ''),
+    title: String(v.title || v.name || '').trim(),
+    thumbnailUrl: v.thumbnailUrl || v.thumbnail || '',
+    views: parseCount(v.viewCount || v.views || '0'),
+    likes: parseCount(v.likeCount || v.likes || '0'),
+    comments: parseCount(v.commentCount || v.comments || '0'),
+    publishedAt: v.publishedAt || v.uploadDate || ''
+  })).filter((v: { videoId: string; title: string }) => Boolean(v.videoId) && Boolean(v.title));
+
+  let videos = enrichVideoMetrics(rawVideos);
+  let fallbackChannelName = '';
+  const channelId = channel.channelId || channel.id || '';
+  if (videos.length === 0 && channelId) {
+    const rss = await fetchRssFallback(channelId);
+    if (rss) {
+      videos = rss.videos;
+      fallbackChannelName = rss.channelName;
+    }
+  }
 
   return {
-    channelName: channel.title || channel.channelTitle || 'Unknown Channel',
+    channelName: channel.title || channel.channelTitle || fallbackChannelName || 'Unknown Channel',
     thumbnailUrl: channel.avatarUrl || channel.thumbnailUrl || '',
-    subscribers: toInt(channel.subscriberCount || channel.subscribers || '0'),
-    totalViews: toInt(channel.totalViews || channel.views || '0'),
-    videoCount: toInt(channel.videoCount || channel.videos || '0'),
+    subscribers: parseCount(channel.subscriberCount || channel.subscribers || '0'),
+    totalViews: parseCount(channel.totalViews || channel.views || '0'),
+    videoCount: parseCount(channel.videoCount || channel.videos || '0'),
     description: channel.description || '',
     videos
   };
