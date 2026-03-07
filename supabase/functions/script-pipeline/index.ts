@@ -688,22 +688,28 @@ async function translateTexts(texts: string[], sourceLang: string, targetLang: s
   if (!texts.length) return [];
   if (src === tgt && src !== "auto") return texts;
 
-  const out: string[] = [];
+  const results: string[] = new Array(texts.length).fill("");
+  const concurrency = Math.min(12, texts.length);
+  let cursor = 0;
 
-  for (const text of texts) {
-    try {
-      const googleResult = await translateWithGoogle(text, src, tgt);
-      out.push(cleanText(googleResult) || text);
-    } catch {
-      const prompt = `Translate this text from ${src} to ${tgt}. Keep meaning natural for spoken script. Return only a JSON array with one translated string.\n\nINPUT:\n${JSON.stringify([text])}`;
-      const content = await callOpenRouter(prompt);
-      const parsed = parseJsonArray(content);
-      const candidate = typeof parsed[0] === "string" ? parsed[0] : "";
-      out.push(cleanText(candidate) || text);
+  async function worker() {
+    while (true) {
+      const idx = cursor;
+      cursor += 1;
+      if (idx >= texts.length) break;
+
+      const original = texts[idx];
+      try {
+        const translated = await translateWithGoogle(original, src, tgt);
+        results[idx] = cleanText(translated) || original;
+      } catch {
+        results[idx] = original;
+      }
     }
   }
 
-  return out;
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+  return results;
 }
 
 function segmentIntoEightSeconds(segments: CaptionSegment[]): Chunk[] {
