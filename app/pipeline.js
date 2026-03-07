@@ -609,9 +609,23 @@ function applyFocusFromQuery() {
     const section = document.querySelector(`.pl-column[data-stage="${focus}"]`);
     if (!section) return;
 
+    const focusClass = focus === "title"
+      ? "pl-column-focus-title"
+      : focus === "thumbnail"
+        ? "pl-column-focus-thumbnail"
+        : "pl-column-focus";
+
     section.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-    section.classList.add("pl-column-focus");
-    setTimeout(() => section.classList.remove("pl-column-focus"), 1600);
+    section.classList.add(focusClass);
+    if (focus === "title") {
+      showNotice("Video Baslik Uretim Hatti acildi.");
+    } else if (focus === "thumbnail") {
+      showNotice("Thumbnail Uretim Hatti acildi.");
+    }
+    setTimeout(() => {
+      section.classList.remove(focusClass);
+      showNotice("");
+    }, 1700);
   });
 }
 

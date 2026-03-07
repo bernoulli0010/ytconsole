@@ -199,12 +199,44 @@
   animation: pl-focus-ring 1.35s ease;
 }
 
+.pl-column-focus-title {
+  animation: pl-focus-title 1.45s ease;
+}
+
+.pl-column-focus-thumbnail {
+  animation: pl-focus-thumbnail 1.45s ease;
+}
+
 @keyframes pl-focus-ring {
   0% {
     box-shadow: 0 0 0 0 rgba(125, 211, 252, 0.75), inset 0 0 0 1px rgba(125, 211, 252, 0.45);
   }
   65% {
     box-shadow: 0 0 0 16px rgba(125, 211, 252, 0), inset 0 0 0 1px rgba(125, 211, 252, 0.25);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+@keyframes pl-focus-title {
+  0% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.78), inset 0 0 0 1px rgba(56, 189, 248, 0.5);
+  }
+  65% {
+    box-shadow: 0 0 0 18px rgba(56, 189, 248, 0), inset 0 0 0 1px rgba(56, 189, 248, 0.24);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+@keyframes pl-focus-thumbnail {
+  0% {
+    box-shadow: 0 0 0 0 rgba(251, 146, 60, 0.82), inset 0 0 0 1px rgba(251, 146, 60, 0.56);
+  }
+  65% {
+    box-shadow: 0 0 0 18px rgba(251, 146, 60, 0), inset 0 0 0 1px rgba(251, 146, 60, 0.26);
   }
   100% {
     box-shadow: none;

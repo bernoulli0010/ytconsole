@@ -1834,9 +1834,9 @@ select,
 }
 
 .tool-card:hover {
-  border-color: rgba(134, 176, 255, 0.72);
+  border-color: var(--brand);
   transform: translateY(-2px);
-  box-shadow: 0 14px 34px rgba(15, 28, 56, 0.33);
+  box-shadow: 0 14px 34px rgba(107, 29, 42, 0.28);
 }
 
 .tool-card::before {
@@ -1900,8 +1900,13 @@ select,
 }
 
 .tool-card:hover .tool-arrow {
-  color: #b5ceff;
+  color: var(--brand);
   transform: translateX(4px);
+}
+
+.tool-card:active {
+  transform: translateY(0) scale(0.992);
+  border-color: var(--brand);
 }
 
 /* Dashboard dark mode */
