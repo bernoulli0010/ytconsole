@@ -248,6 +248,13 @@ serve(async (req) => {
       );
     }
 
+    if (profile.token_balance < 2) {
+      return new Response(
+        JSON.stringify({ error: 'Yetersiz token. Rakip eklemek için en az 2 token gerekli.', code: 'INSUFFICIENT_TOKENS' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Check competitor limit
     const { count } = await supabase
       .from('competitor_channels')
@@ -337,17 +344,13 @@ serve(async (req) => {
         .upsert(videoRecords, { onConflict: 'channel_id,video_id' });
     }
 
-    // Deduct tokens only if enough balance exists
-    const canDeductTokens = typeof profile.token_balance === 'number' && profile.token_balance >= 2;
-    const tokensDeducted = canDeductTokens ? 2 : 0;
-    const newTokenBalance = canDeductTokens ? (profile.token_balance - 2) : profile.token_balance;
-
-    if (canDeductTokens) {
-      await supabase
-        .from('profiles')
-        .update({ token_balance: newTokenBalance })
-        .eq('id', user.id);
-    }
+    // Deduct tokens
+    const tokensDeducted = 2;
+    const newTokenBalance = profile.token_balance - 2;
+    await supabase
+      .from('profiles')
+      .update({ token_balance: newTokenBalance })
+      .eq('id', user.id);
 
     return new Response(
       JSON.stringify({
