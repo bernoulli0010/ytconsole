@@ -78,6 +78,21 @@ function textFromNode(node: any): string {
   return '';
 }
 
+function extractViewCountFromRenderer(renderer: any): number {
+  const candidates = [
+    textFromNode(renderer?.viewCountText),
+    textFromNode(renderer?.shortViewCountText),
+    String(renderer?.viewCountText?.accessibility?.accessibilityData?.label || ''),
+    String(renderer?.shortViewCountText?.accessibility?.accessibilityData?.label || ''),
+  ];
+
+  for (const candidate of candidates) {
+    const count = parseCount(candidate);
+    if (count > 0) return count;
+  }
+  return 0;
+}
+
 function extractYtInitialData(html: string): any | null {
   const match = html.match(/var ytInitialData\s*=\s*(\{[\s\S]*?\});/);
   if (!match) return null;
@@ -152,7 +167,7 @@ async function fetchChannelVideosFromPage(channelUrl: string): Promise<{
       const title = textFromNode(renderer.title);
       const thumbnails = renderer.thumbnail?.thumbnails || [];
       const thumbnailUrl = thumbnails.length > 0 ? (thumbnails[thumbnails.length - 1].url || '') : '';
-      const views = parseCount(textFromNode(renderer.viewCountText));
+      const views = extractViewCountFromRenderer(renderer);
       const publishedAt = parseRelativeTimeToIso(textFromNode(renderer.publishedTimeText));
       return {
         videoId,

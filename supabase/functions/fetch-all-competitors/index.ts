@@ -74,6 +74,21 @@ function textFromNode(node: any): string {
   return '';
 }
 
+function extractViewCountFromRenderer(renderer: any): number {
+  const candidates = [
+    textFromNode(renderer?.viewCountText),
+    textFromNode(renderer?.shortViewCountText),
+    String(renderer?.viewCountText?.accessibility?.accessibilityData?.label || ''),
+    String(renderer?.shortViewCountText?.accessibility?.accessibilityData?.label || ''),
+  ];
+
+  for (const candidate of candidates) {
+    const count = parseCount(candidate);
+    if (count > 0) return count;
+  }
+  return 0;
+}
+
 function extractYtInitialData(html: string): any | null {
   const match = html.match(/var ytInitialData\s*=\s*(\{[\s\S]*?\});/);
   if (!match) return null;
@@ -155,7 +170,7 @@ async function fetchChannelVideosFromPage(channelUrl: string): Promise<{
         videoId,
         title,
         thumbnailUrl,
-        views: parseCount(textFromNode(renderer.viewCountText)),
+        views: extractViewCountFromRenderer(renderer),
         likes: 0,
         comments: 0,
         publishedAt: parseRelativeTimeToIso(textFromNode(renderer.publishedTimeText))
