@@ -597,6 +597,24 @@ function setView(view) {
   renderBoard();
 }
 
+function applyFocusFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const focus = params.get("focus");
+  if (!focus) return;
+  if (!STAGES.includes(focus)) return;
+
+  setView("active");
+
+  requestAnimationFrame(() => {
+    const section = document.querySelector(`.pl-column[data-stage="${focus}"]`);
+    if (!section) return;
+
+    section.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    section.classList.add("pl-column-focus");
+    setTimeout(() => section.classList.remove("pl-column-focus"), 1600);
+  });
+}
+
 function bindModalActions() {
   $("closeProductionModalBtn").addEventListener("click", closeProductionModal);
   $("productionModal").addEventListener("click", (e) => {
@@ -759,6 +777,7 @@ async function init() {
   setupKeyboard();
   await initData();
   renderBoard();
+  applyFocusFromQuery();
 }
 
 init();

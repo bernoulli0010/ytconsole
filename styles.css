@@ -1824,17 +1824,47 @@ select,
   align-items: center;
   gap: 16px;
   padding: 24px;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--radius);
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: all 0.24s ease;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
 }
 
 .tool-card:hover {
-  border-color: var(--brand);
+  border-color: rgba(134, 176, 255, 0.72);
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 14px 34px rgba(15, 28, 56, 0.33);
+}
+
+.tool-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.08) 0, rgba(255, 255, 255, 0) 42%),
+    linear-gradient(145deg, rgba(18, 24, 40, 0.95), rgba(10, 14, 25, 0.96));
+}
+
+.tool-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.22) 0.8px, transparent 0.8px);
+  background-size: 14px 14px;
+  opacity: 0.18;
+  transform: scale(0.4);
+  transform-origin: center;
+  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease;
+}
+
+.tool-card:hover::after {
+  transform: scale(1.25);
+  opacity: 0;
 }
 
 .tool-icon {
@@ -1854,23 +1884,23 @@ select,
 .tool-content h3 {
   font-size: 17px;
   font-weight: 700;
-  color: var(--text);
+  color: #f5f7ff;
   margin-bottom: 4px;
 }
 
 .tool-content p {
   font-size: 13px;
-  color: var(--text-muted);
+  color: rgba(225, 233, 255, 0.76);
   line-height: 1.4;
 }
 
 .tool-arrow {
-  color: var(--text-faint);
+  color: rgba(220, 230, 255, 0.58);
   transition: all 0.2s ease;
 }
 
 .tool-card:hover .tool-arrow {
-  color: var(--brand);
+  color: #b5ceff;
   transform: translateX(4px);
 }
 

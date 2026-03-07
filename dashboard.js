@@ -315,8 +315,10 @@ const UI = {
     toolVideoDesc: "Videolarınızın performansını detaylı şekilde analiz edin",
     toolChannel: "Kanal Analizi",
     toolChannelDesc: "Kanal istatistiklerini karşılaştırın ve büyüme takibi yapın",
-    toolStats: "İstatistikler",
-    toolStatsDesc: "Etkileşim oranları, izlenme ve büyüme metriklerinizi takip edin",
+    toolTitlePipe: "Video Başlık Üretim Hattı",
+    toolTitlePipeDesc: "Başlık ve açıklama odaklı üretim adımlarını doğrudan açın",
+    toolThumbPipe: "Thumbnail Üretim Hattı",
+    toolThumbPipeDesc: "Thumbnail hazırlama, yükleme ve kontrol adımlarını açın",
     toolProd: "Video Üretim Hattı",
     toolProdDesc: "Video üretim sürecinizi planlayın ve otomatikleştirin",
     toolPipe: "Pipeline",
@@ -367,8 +369,10 @@ const UI = {
     toolVideoDesc: "Analyze your video performance in detail",
     toolChannel: "Channel Analysis",
     toolChannelDesc: "Compare channel stats and track growth",
-    toolStats: "Statistics",
-    toolStatsDesc: "Track engagement rates, views and growth metrics",
+    toolTitlePipe: "Video Title Production Line",
+    toolTitlePipeDesc: "Jump directly into title and description production steps",
+    toolThumbPipe: "Thumbnail Production Line",
+    toolThumbPipeDesc: "Open thumbnail prep, upload and quality-check steps",
     toolProd: "Video Production Line",
     toolProdDesc: "Plan and automate your video production process",
     toolPipe: "Pipeline",
@@ -438,8 +442,10 @@ function setLanguage(lang) {
   if ($("toolVideoDesc")) $("toolVideoDesc").textContent = t.toolVideoDesc;
   if ($("toolChannelTitle")) $("toolChannelTitle").textContent = t.toolChannel;
   if ($("toolChannelDesc")) $("toolChannelDesc").textContent = t.toolChannelDesc;
-  if ($("toolStatsTitle")) $("toolStatsTitle").textContent = t.toolStats;
-  if ($("toolStatsDesc")) $("toolStatsDesc").textContent = t.toolStatsDesc;
+  if ($("toolTitlePipeTitle")) $("toolTitlePipeTitle").textContent = t.toolTitlePipe;
+  if ($("toolTitlePipeDesc")) $("toolTitlePipeDesc").textContent = t.toolTitlePipeDesc;
+  if ($("toolThumbPipeTitle")) $("toolThumbPipeTitle").textContent = t.toolThumbPipe;
+  if ($("toolThumbPipeDesc")) $("toolThumbPipeDesc").textContent = t.toolThumbPipeDesc;
   if ($("toolProdTitle")) $("toolProdTitle").textContent = t.toolProd;
   if ($("toolProdDesc")) $("toolProdDesc").textContent = t.toolProdDesc;
   if ($("toolPipeTitle")) $("toolPipeTitle").textContent = t.toolPipe;
