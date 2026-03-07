@@ -1898,6 +1898,8 @@ select,
   display: grid;
   grid-template-rows: auto 1fr auto;
   height: 100vh;
+  width: 100vw;
+  max-width: 100vw;
   overflow: hidden;
 }
 
@@ -1963,10 +1965,11 @@ select,
 /* ── Editor Main Area ── */
 .editor-main {
   display: grid;
-  grid-template-columns: auto 320px 1fr auto;
+  grid-template-columns: auto 320px minmax(0, 1fr) auto;
   overflow: hidden;
   background: var(--bg-page);
   min-height: 0;
+  min-width: 0;
 }
 
 .editor-panels {
@@ -2136,6 +2139,7 @@ select,
   position: relative;
   overflow: hidden;
   min-height: 0;
+  min-width: 0;
   gap: 16px;
 }
 
@@ -2240,6 +2244,7 @@ select,
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .timeline-toolbar {

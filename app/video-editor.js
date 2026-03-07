@@ -2425,7 +2425,7 @@ function updatePlayhead() {
   }
 
   const timelineContainer = document.getElementById('timelineContainer');
-  if (timelineContainer) {
+  if (timelineContainer && (projectState.isPlaying || isDraggingPlayhead)) {
     const targetX = projectState.currentTime * pixelsPerSecond;
     const leftBound = timelineContainer.scrollLeft;
     const rightBound = leftBound + timelineContainer.clientWidth;
