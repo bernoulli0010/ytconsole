@@ -1,6 +1,5 @@
 <!doctype html>
 <html lang="tr">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,77 +7,154 @@
   <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="placeholder.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="thumbnail-uretim-hatti.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
 </head>
+<body class="tm-page">
+  <div class="tm-noise" aria-hidden="true"></div>
 
-<body>
-  <header class="header">
-    <div class="container header-inner">
-      <a href="../index.html" class="brand">
-        <div class="logo">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.4 31.4 0 0 0 0 12a31.4 31.4 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.4 31.4 0 0 0 24 12a31.4 31.4 0 0 0-.5-5.8z" fill="#fff"/>
-            <path d="M9.6 15.6V8.4l6.4 3.6-6.4 3.6z" fill="#6B1D2A"/>
-          </svg>
-        </div>
-        <div>
-          <div class="brand-title">Thumbnail Uretim Hatti</div>
-          <div class="brand-sub">YTConsole</div>
-        </div>
-      </a>
-      <div class="header-actions">
-        <a href="../index.html" class="btn-secondary mini">Ana Sayfa</a>
-        <button class="btn-icon" id="themeToggle" type="button" title="Tema Degistir">
-          <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
-          <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
-            <circle cx="12" cy="12" r="5" />
-            <line x1="12" y1="1" x2="12" y2="3" />
-            <line x1="12" y1="21" x2="12" y2="23" />
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-            <line x1="1" y1="12" x2="3" y2="12" />
-            <line x1="21" y1="12" x2="23" y2="12" />
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-          </svg>
-        </button>
-      </div>
-    </div>
-  </header>
+  <main class="tm-shell">
+    <a class="tm-home" href="../index.html">Get Started</a>
 
-  <main class="container main">
-    <div class="placeholder-content">
-      <div class="placeholder-icon">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#E86100" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="5" width="18" height="14" rx="2"/>
-          <circle cx="8" cy="10" r="1.5"/>
-          <path d="M21 16l-5-5-6 6"/>
-        </svg>
+    <nav class="tm-mode-nav" aria-label="Mod secimi" role="tablist">
+      <button type="button" class="tm-mode-btn is-active" data-mode="prompt" role="tab" aria-selected="true">Prompt</button>
+      <button type="button" class="tm-mode-btn" data-mode="recreate" role="tab" aria-selected="false">Recreate</button>
+      <button type="button" class="tm-mode-btn" data-mode="analyze" role="tab" aria-selected="false">Analyze</button>
+      <button type="button" class="tm-mode-btn" data-mode="edit" role="tab" aria-selected="false">Edit</button>
+      <button type="button" class="tm-mode-btn" data-mode="title" role="tab" aria-selected="false">Title</button>
+    </nav>
+
+    <section class="tm-panel" id="tmPanel" aria-live="polite">
+      <div class="tm-source" data-show-in="recreate,analyze,edit,title">
+        <button class="tm-chip is-active" type="button" data-source="upload">Upload</button>
+        <button class="tm-chip" type="button" data-source="link">Link</button>
       </div>
-      <h1>Thumbnail Uretim Hatti</h1>
-      <p>Bu bolum yakinda sizlerle!</p>
-      <p class="placeholder-desc">Thumbnail fikir, taslak ve kalite kontrol adimlarini tek baglantidan yonetebileceginiz yeni sayfa hazirlaniyor.</p>
-      <div class="placeholder-features">
-        <div class="feature-badge">Kapak Fikri Uretimi</div>
-        <div class="feature-badge">Renk ve Kontrast Kontrolu</div>
-        <div class="feature-badge">Metin Okunabilirlik Testi</div>
-        <div class="feature-badge">Final Thumbnail Kontrolu</div>
+
+      <div class="tm-view is-active" data-view="prompt" role="tabpanel">
+        <label class="tm-field" for="promptInput">
+          <span class="tm-field-title">Prompt</span>
+          <textarea id="promptInput" rows="5" placeholder="A man swimming underwater, looking terrified at the camera while a shark looms in the background"></textarea>
+        </label>
+
+        <div class="tm-subtitle">Options</div>
+        <div class="tm-options">
+          <button type="button" class="tm-chip" data-toggle-chip>Personas</button>
+          <button type="button" class="tm-chip" data-toggle-chip>Styles</button>
+          <button type="button" class="tm-chip" data-toggle-chip>1x</button>
+          <button type="button" class="tm-chip tm-chip-muted" disabled>Enhance Prompt</button>
+        </div>
       </div>
-      <a href="pipeline.html?focus=thumbnail" class="btn-primary">Uretim Hattini Ac</a>
-    </div>
+
+      <div class="tm-view" data-view="recreate" role="tabpanel" hidden>
+        <div class="tm-source-panels">
+          <label class="tm-field" data-source-panel="link">
+            <span class="tm-field-title">Kaynak Baglantisi</span>
+            <input type="url" id="recreateLinkInput" placeholder="Thumbnail veya YouTube baglantisini gir" />
+          </label>
+
+          <label class="tm-drop" data-source-panel="upload">
+            <input type="file" id="recreateFileInput" accept="image/png,image/jpeg,image/webp" class="tm-file-input" />
+            <span class="tm-drop-title">Thumbnail yukle veya surukleyip birak</span>
+            <span class="tm-drop-meta">PNG, JPG, JPEG, WEBP - Maks. 4 MB</span>
+          </label>
+        </div>
+
+        <div class="tm-subtitle">Edits</div>
+        <label class="tm-field" for="recreateEditInput">
+          <textarea id="recreateEditInput" rows="4" placeholder="Neyi eklemek, kaldirmak veya degistirmek istedigini yaz."></textarea>
+        </label>
+      </div>
+
+      <div class="tm-view" data-view="analyze" role="tabpanel" hidden>
+        <div class="tm-source-panels">
+          <label class="tm-field" data-source-panel="link">
+            <span class="tm-field-title">Thumbnail veya video baglantisi</span>
+            <input type="url" id="analyzeLinkInput" placeholder="https://youtube.com/watch?v=..." />
+          </label>
+
+          <label class="tm-drop" data-source-panel="upload">
+            <input type="file" id="analyzeFileInput" accept="image/png,image/jpeg,image/webp" class="tm-file-input" />
+            <span class="tm-drop-title">Analiz icin thumbnail yukle</span>
+            <span class="tm-drop-meta">Renk, metin ve kompozisyon analizi</span>
+          </label>
+        </div>
+
+        <label class="tm-field" for="analyzeTitleInput">
+          <span class="tm-field-title">Video Basligi</span>
+          <input id="analyzeTitleInput" type="text" placeholder="Enter a video title" />
+        </label>
+      </div>
+
+      <div class="tm-view" data-view="edit" role="tabpanel" hidden>
+        <div class="tm-source-panels">
+          <label class="tm-field" data-source-panel="link">
+            <span class="tm-field-title">Gorsel baglantisi</span>
+            <input type="url" id="editLinkInput" placeholder="Duzenlemek istedigin thumbnail baglantisi" />
+          </label>
+
+          <label class="tm-drop" data-source-panel="upload">
+            <input type="file" id="editFileInput" accept="image/png,image/jpeg,image/webp" class="tm-file-input" />
+            <span class="tm-drop-title">Duzenleme icin gorsel yukle</span>
+            <span class="tm-drop-meta">Arka plan, obje veya metin duzenlemeleri</span>
+          </label>
+        </div>
+
+        <label class="tm-field" for="editInstructionInput">
+          <span class="tm-field-title">Edits</span>
+          <textarea id="editInstructionInput" rows="5" placeholder="Ornek: Sol tarafa buyuk beyaz metin ekle, konu yuzunu daha parlak yap, arka plani daha dramatik yap."></textarea>
+        </label>
+      </div>
+
+      <div class="tm-view" data-view="title" role="tabpanel" hidden>
+        <div class="tm-source-panels">
+          <label class="tm-field" data-source-panel="link">
+            <span class="tm-field-title">Thumbnail veya video baglantisi</span>
+            <input type="url" id="titleLinkInput" placeholder="Baslik onerisi icin kaynak baglantisi" />
+          </label>
+
+          <label class="tm-drop" data-source-panel="upload">
+            <input type="file" id="titleFileInput" accept="image/png,image/jpeg,image/webp" class="tm-file-input" />
+            <span class="tm-drop-title">Title mode icin thumbnail yukle</span>
+            <span class="tm-drop-meta">Gorsele gore baslik fikirleri uret</span>
+          </label>
+        </div>
+
+        <label class="tm-field" for="titleContextInput">
+          <span class="tm-field-title">Kontekst</span>
+          <textarea id="titleContextInput" rows="3" placeholder="Konu, hedef kitle ve anlatim tonu"></textarea>
+        </label>
+
+        <div class="tm-options" data-tone-group>
+          <button type="button" class="tm-chip is-active" data-toggle-chip>Merak</button>
+          <button type="button" class="tm-chip" data-toggle-chip>Otorite</button>
+          <button type="button" class="tm-chip" data-toggle-chip>Duygusal</button>
+        </div>
+
+        <ul class="tm-title-results" id="titleResults" hidden></ul>
+      </div>
+
+      <div class="tm-cta-wrap">
+        <button type="button" class="tm-cta" id="mainActionBtn">Generate</button>
+        <p class="tm-status" id="actionStatus">Hazir</p>
+      </div>
+
+      <section class="tm-results" id="resultsSection" aria-label="Sonuclar">
+        <div class="tm-results-head">
+          <h2>Results</h2>
+          <div class="tm-results-actions">
+            <button type="button" class="tm-chip" id="copyAllResultsBtn" disabled>Copy All</button>
+            <button type="button" class="tm-chip" id="clearResultsBtn" disabled>Clear</button>
+          </div>
+        </div>
+        <div class="tm-results-list" id="resultsList">
+          <div class="tm-empty-result">Henuz sonuc yok. Bir islem baslat.</div>
+        </div>
+      </section>
+    </section>
   </main>
 
-  <footer class="container footer">
-    <div class="footer-left">
-      <span>YTConsole © 2026</span>
-    </div>
-  </footer>
-
-  <script src="shared-navbar.js"></script>
+  <script src="thumbnail-uretim-hatti.js"></script>
 </body>
-
 </html>
