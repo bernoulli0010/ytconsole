@@ -53,6 +53,7 @@ let dragInitialX = 0;
 let dragInitialY = 0;
 let playbackRafId = null;
 let lastPlaybackTick = 0;
+let timelineZoom = 100;
 
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
@@ -96,7 +97,7 @@ function normalizeSceneDuration(rawDuration, fallbackDuration) {
 }
 
 function getPixelsPerSecond() {
-  return DEFAULT_PIXELS_PER_SECOND;
+  return DEFAULT_PIXELS_PER_SECOND * (timelineZoom / 100);
 }
 
 function getSceneStartTime(sceneId) {
@@ -583,8 +584,28 @@ function bindEvents() {
   // Zoom Slider
   const zoomSlider = document.querySelector('.zoom-slider');
   if (zoomSlider) {
+    timelineZoom = Number(zoomSlider.value) || 100;
+    const zoomTextEl = document.querySelector('.control-text');
+    if (zoomTextEl) {
+      zoomTextEl.textContent = timelineZoom === 100 ? 'Uygun' : `${timelineZoom}%`;
+    }
+
     zoomSlider.addEventListener('input', (e) => {
-      document.querySelector('.control-text').textContent = e.target.value + '%';
+      const nextZoom = Number(e.target.value) || 100;
+      timelineZoom = Math.max(50, Math.min(200, nextZoom));
+
+      const controlText = document.querySelector('.control-text');
+      if (controlText) {
+        controlText.textContent = timelineZoom === 100 ? 'Uygun' : `${timelineZoom}%`;
+      }
+
+      renderTimeline();
+
+      const timelineContainer = document.getElementById('timelineContainer');
+      if (timelineContainer) {
+        const targetX = projectState.currentTime * getPixelsPerSecond();
+        timelineContainer.scrollLeft = Math.max(0, targetX - timelineContainer.clientWidth * 0.35);
+      }
     });
   }
 
@@ -2096,7 +2117,6 @@ let resizeInitialDuration = 0;
 
 function initTimelineInteractions() {
   const container = document.getElementById('timelineContainer');
-  const pixelsPerSecond = getPixelsPerSecond();
 
   // 1. Seek on timeline click
   container.addEventListener('mousedown', (e) => {
@@ -2147,6 +2167,7 @@ function initTimelineInteractions() {
   });
 
   function updateSeekPosition(clientX) {
+    const pixelsPerSecond = getPixelsPerSecond();
     const rect = container.getBoundingClientRect();
     let x = clientX - rect.left + container.scrollLeft;
     
@@ -2161,6 +2182,7 @@ function initTimelineInteractions() {
   }
 
   function handleClipResize(clientX) {
+    const pixelsPerSecond = getPixelsPerSecond();
     const scene = projectState.scenes.find(s => s.id === resizeSceneId);
     if (!scene) return;
 
