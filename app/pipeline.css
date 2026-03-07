@@ -47,10 +47,43 @@
 .pl-brand {
   color: #dce5f4;
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pl-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #6b1d2a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(107, 29, 42, 0.35);
+}
+
+.pl-brand-texts {
+  display: grid;
+  gap: 1px;
+}
+
+.pl-brand-title {
   font-family: var(--pl-title);
-  font-size: 25px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
   letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.pl-brand-sub {
+  font-size: 12px;
+  color: #9eb0c9;
+  line-height: 1;
+}
+
+.pl-home-btn {
+  text-decoration: none;
 }
 
 .pl-top-actions {
@@ -511,6 +544,10 @@
   .pl-top-actions {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .pl-brand-title {
+    font-size: 18px;
   }
 
   .pl-pill,
