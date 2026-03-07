@@ -114,6 +114,54 @@ function collectVideoRenderers(node: any, out: any[] = []): any[] {
   return out;
 }
 
+function extractVideoRenderersFromHtml(html: string): any[] {
+  const marker = '"videoRenderer":';
+  const renderers: any[] = [];
+  let idx = 0;
+
+  while (idx < html.length) {
+    const markerIdx = html.indexOf(marker, idx);
+    if (markerIdx === -1) break;
+
+    let start = markerIdx + marker.length;
+    while (start < html.length && html[start] !== '{') start++;
+    if (start >= html.length) break;
+
+    let i = start;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (; i < html.length; i++) {
+      const ch = html[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+      } else {
+        if (ch === '"') inString = true;
+        else if (ch === '{') depth++;
+        else if (ch === '}') {
+          depth--;
+          if (depth === 0) {
+            const objStr = html.slice(start, i + 1);
+            try {
+              renderers.push(JSON.parse(objStr));
+            } catch {
+              // ignore broken snippets
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    idx = i + 1;
+  }
+
+  return renderers;
+}
+
 function parseRelativeTimeToIso(relativeText: string): string | null {
   const text = relativeText.toLowerCase().trim();
   const m = text.match(/(\d+)\s+(minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years|minute|dakika|saat|gun|gün|hafta|ay|yıl|yil)\s*(ago|önce)?/);
@@ -160,7 +208,10 @@ async function fetchChannelVideosFromPage(channelUrl: string): Promise<{
     if (!response.ok) return null;
     const html = await response.text();
     const initialData = extractYtInitialData(html);
-    const renderers = initialData ? collectVideoRenderers(initialData) : [];
+    let renderers = initialData ? collectVideoRenderers(initialData) : [];
+    if (renderers.length === 0) {
+      renderers = extractVideoRenderersFromHtml(html);
+    }
     const rawVideos = renderers.slice(0, 10).map((renderer: any) => {
       const videoId = String(renderer.videoId || '').trim();
       const title = textFromNode(renderer.title);
