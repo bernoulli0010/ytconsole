@@ -100,7 +100,11 @@ async function handleExtract() {
     pipelineState.extractedSegments = Array.isArray(res.segments) ? res.segments : [];
 
     $("transcriptOutput").value = res.transcript || "";
-    const modeNote = res.transcriptMode === "description_fallback" ? " | Mod: Açıklamadan üretildi" : " | Mod: Caption";
+    const modeNote = res.transcriptMode === "description_fallback"
+      ? " | Mod: Açıklamadan üretildi"
+      : res.transcriptMode === "apify_fallback"
+        ? " | Mod: Apify"
+        : " | Mod: Caption";
     $("extractMeta").textContent = `Video: ${pipelineState.title || "Bilinmiyor"} | Kaynak dil: ${pipelineState.sourceLang || "Bilinmiyor"} | Satır: ${pipelineState.extractedSegments.length}${modeNote}`;
 
     clearDownstream(2);

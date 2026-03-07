@@ -12,6 +12,11 @@ type CaptionSegment = {
   duration: number;
 };
 
+type ApifyOutput = {
+  sourceLang: string;
+  segments: CaptionSegment[];
+};
+
 type Chunk = {
   index: number;
   text: string;
@@ -421,6 +426,89 @@ function buildSegmentsFromPlainText(text: string): CaptionSegment[] {
   return segments;
 }
 
+function normalizeApifyTranscript(raw: unknown): string {
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw)) {
+    return raw
+      .map((x) => {
+        if (typeof x === "string") return x;
+        if (x && typeof x === "object") {
+          const rec = x as Record<string, unknown>;
+          return safeStr(rec.text || rec.transcript || rec.value || "");
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join(" ");
+  }
+  return "";
+}
+
+async function fetchApifyTranscript(videoUrl: string): Promise<ApifyOutput | null> {
+  const token = Deno.env.get("APIFY_API_TOKEN");
+  if (!token) return null;
+
+  const actorId = Deno.env.get("APIFY_YT_ACTOR_ID") || "Uwpce1RSXlrzF6WBA";
+  const runInput = {
+    youtube_url: videoUrl,
+    language: null,
+    channel_url: null,
+    max_videos: 1,
+    start_date: null,
+    end_date: null,
+    include_transcript_text: true,
+  };
+
+  const runResp = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs?token=${token}&waitForFinish=120`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(runInput),
+  });
+
+  if (!runResp.ok) {
+    throw new Error(`Apify run hatası (${runResp.status}).`);
+  }
+
+  const runData = await runResp.json();
+  const datasetId = safeStr(runData?.data?.defaultDatasetId || "");
+  if (!datasetId) {
+    throw new Error("Apify dataset bulunamadı.");
+  }
+
+  const itemsResp = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}&clean=true`);
+  if (!itemsResp.ok) {
+    throw new Error(`Apify dataset okunamadı (${itemsResp.status}).`);
+  }
+
+  const items = await itemsResp.json();
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("Apify transcript verisi boş.");
+  }
+
+  const item = items[0] as Record<string, unknown>;
+  const transcriptRaw =
+    item.transcript_text ||
+    item.transcript ||
+    item.captions ||
+    item.subtitles ||
+    item.description ||
+    "";
+
+  const transcriptText = cleanText(normalizeApifyTranscript(transcriptRaw));
+  if (!transcriptText) {
+    throw new Error("Apify transcript metni boş döndü.");
+  }
+
+  const sourceLang = normalizeLang(
+    safeStr(item.language || item.transcript_language || item.lang || "auto")
+  );
+
+  return {
+    sourceLang,
+    segments: buildSegmentsFromPlainText(transcriptText),
+  };
+}
+
 async function fetchWatchPageHtml(videoId: string): Promise<string> {
   const response = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en`, {
     headers: { "User-Agent": "Mozilla/5.0" },
@@ -703,6 +791,19 @@ serve(async (req) => {
               }
 
               if (segments.length) break;
+            }
+          } catch (e) {
+            capturedError = e instanceof Error ? e.message : capturedError;
+          }
+        }
+
+        if (!segments.length) {
+          try {
+            const apifyResult = await fetchApifyTranscript(url);
+            if (apifyResult && apifyResult.segments.length) {
+              segments = apifyResult.segments;
+              sourceLang = apifyResult.sourceLang || "auto";
+              transcriptMode = "apify_fallback";
             }
           } catch (e) {
             capturedError = e instanceof Error ? e.message : capturedError;
