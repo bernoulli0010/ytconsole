@@ -19,7 +19,8 @@ const state = {
   manualOrder: true,
   currentTaskId: null,
   dragTaskId: null,
-  supabaseReady: true
+  supabaseReady: true,
+  youtubePreview: null
 };
 
 const supabaseClient = window.supabase
@@ -38,7 +39,7 @@ function showNotice(msg) {
 }
 
 function setWriteEnabled(enabled) {
-  ["newTaskBtn", "orderModeBtn", "resetOrderBtn"].forEach((id) => {
+  ["newTaskBtn", "orderModeBtn", "resetOrderBtn", "previewYoutubeBtn", "addYoutubeBtn", "startScratchBtn"].forEach((id) => {
     const el = $(id);
     if (!el) return;
     el.disabled = !enabled;
@@ -172,17 +173,23 @@ function renderBoard() {
 
       const thumb = task.thumbnailDataUrl || task.thumbnailUrl || "../favicon.svg";
       const archiveLabel = task.isArchived ? "Unarchive" : "Archive";
+      const snippet = (task.description || task.scriptText || "No description yet.").trim();
+      const chipText = STAGE_LABELS[task.stage] || "Task";
 
       card.innerHTML = `
         <img src="${thumb}" class="pl-card-thumb" alt="Task thumbnail" />
         <div class="pl-card-title">${escapeHtml(task.title)}</div>
         <div class="pl-card-meta">${formatDate(task.scheduledDate)}</div>
+        <div class="pl-card-snippet">${escapeHtml(snippet)}</div>
+        <div class="pl-card-chip">${escapeHtml(chipText)}</div>
         <div class="pl-card-actions">
           <button class="pl-action" data-action="edit">Edit</button>
           <button class="pl-action archive" data-action="archive">${archiveLabel}</button>
           <button class="pl-action delete" data-action="delete">Delete</button>
         </div>
       `;
+
+      card.classList.add(`pl-card--${task.stage}`);
 
       card.addEventListener("dragstart", onCardDragStart);
       card.addEventListener("dragend", onCardDragEnd);
@@ -279,6 +286,107 @@ async function addTask() {
   renderBoard();
   openTaskModal(task.id);
   await safeSaveTask(task);
+}
+
+function openProductionModal() {
+  state.youtubePreview = null;
+  renderYoutubePreview(null);
+  $("youtubeInput").value = "";
+  $("productionModal").classList.add("is-open");
+  $("productionModal").setAttribute("aria-hidden", "false");
+  $("youtubeInput").focus();
+}
+
+function closeProductionModal() {
+  $("productionModal").classList.remove("is-open");
+  $("productionModal").setAttribute("aria-hidden", "true");
+}
+
+function getYouTubeId(input) {
+  const value = (input || "").trim();
+  if (!value) return "";
+  const idMatch = value.match(/^[a-zA-Z0-9_-]{11}$/);
+  if (idMatch) return idMatch[0];
+
+  try {
+    const url = new URL(value);
+    if (url.hostname.includes("youtu.be")) {
+      const pathId = url.pathname.replace(/^\//, "");
+      if (/^[a-zA-Z0-9_-]{11}$/.test(pathId)) return pathId;
+    }
+    const v = url.searchParams.get("v");
+    if (v && /^[a-zA-Z0-9_-]{11}$/.test(v)) return v;
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+async function fetchYouTubePreview(input) {
+  const id = getYouTubeId(input);
+  if (!id) {
+    showNotice("Gecerli YouTube URL veya 11 karakter ID gir.");
+    return null;
+  }
+
+  const videoUrl = `https://www.youtube.com/watch?v=${id}`;
+  const thumbnail = `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`;
+  let title = `YouTube video ${id}`;
+
+  try {
+    const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(videoUrl)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.title) title = data.title;
+    }
+  } catch {}
+
+  return { id, title, videoUrl, thumbnail };
+}
+
+function renderYoutubePreview(preview) {
+  const wrap = $("youtubePreview");
+  const img = $("youtubePreviewImg");
+  const title = $("youtubePreviewTitle");
+  const id = $("youtubePreviewId");
+  if (!preview) {
+    wrap.hidden = true;
+    return;
+  }
+  img.src = preview.thumbnail;
+  title.textContent = preview.title;
+  id.textContent = `ID: ${preview.id}`;
+  wrap.hidden = false;
+}
+
+async function handleYoutubePreview() {
+  const preview = await fetchYouTubePreview($("youtubeInput").value);
+  state.youtubePreview = preview;
+  renderYoutubePreview(preview);
+  if (preview) showNotice("Preview hazir.");
+}
+
+async function addTaskFromYoutube() {
+  let preview = state.youtubePreview;
+  if (!preview) {
+    preview = await fetchYouTubePreview($("youtubeInput").value);
+    if (!preview) return;
+  }
+
+  const task = createBlankTask();
+  task.title = preview.title;
+  task.videoUrl = preview.videoUrl;
+  task.thumbnailUrl = preview.thumbnail;
+  task.description = "Imported from YouTube";
+  task.updatedAt = new Date().toISOString();
+
+  state.tasks.push(task);
+  persistCache();
+  renderBoard();
+  closeProductionModal();
+  await safeSaveTask(task);
+  showNotice("YouTube videosu production'a eklendi.");
 }
 
 async function toggleArchive(taskId) {
@@ -490,6 +598,17 @@ function setView(view) {
 }
 
 function bindModalActions() {
+  $("closeProductionModalBtn").addEventListener("click", closeProductionModal);
+  $("productionModal").addEventListener("click", (e) => {
+    if (e.target === $("productionModal")) closeProductionModal();
+  });
+  $("previewYoutubeBtn").addEventListener("click", handleYoutubePreview);
+  $("addYoutubeBtn").addEventListener("click", addTaskFromYoutube);
+  $("startScratchBtn").addEventListener("click", async () => {
+    closeProductionModal();
+    await addTask();
+  });
+
   $("closeTaskModalBtn").addEventListener("click", closeTaskModal);
   $("taskModal").addEventListener("click", (e) => {
     if (e.target === $("taskModal")) closeTaskModal();
@@ -617,7 +736,7 @@ async function initData() {
 }
 
 function bindTopActions() {
-  $("newTaskBtn").addEventListener("click", addTask);
+  $("newTaskBtn").addEventListener("click", openProductionModal);
   $("resetOrderBtn").addEventListener("click", resetOrder);
   $("orderModeBtn").addEventListener("click", toggleOrderMode);
   $("viewActiveBtn").addEventListener("click", () => setView("active"));
@@ -626,7 +745,10 @@ function bindTopActions() {
 
 function setupKeyboard() {
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeTaskModal();
+    if (e.key === "Escape") {
+      closeTaskModal();
+      closeProductionModal();
+    }
   });
 }
 

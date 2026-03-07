@@ -40,7 +40,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
       <button id="resetOrderBtn" class="pl-pill" type="button">Reset order</button>
-      <button id="newTaskBtn" class="pl-primary-btn" type="button">New task</button>
+      <button id="newTaskBtn" class="pl-primary-btn pl-add-btn" type="button">Add to Production</button>
       <button class="btn-icon" id="themeToggle" type="button" title="Tema Degistir">
         <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
@@ -61,6 +61,36 @@
   </header>
 
   <section id="pipelineNotice" class="pl-notice" hidden></section>
+
+  <div id="productionModal" class="pl-modal" aria-hidden="true">
+    <div class="pl-modal-card pl-add-modal" role="dialog" aria-modal="true" aria-labelledby="productionModalTitle">
+      <div class="pl-modal-head">
+        <h3 id="productionModalTitle">Add to Production</h3>
+        <button id="closeProductionModalBtn" class="pl-close" type="button">Close</button>
+      </div>
+      <div class="pl-add-modal-content">
+        <div class="pl-add-row">
+          <p class="pl-add-help">Add from a YouTube video, or</p>
+          <button id="startScratchBtn" class="pl-pill" type="button">Start from scratch</button>
+        </div>
+        <div class="pl-field">
+          <label for="youtubeInput">YouTube URL or ID</label>
+          <input id="youtubeInput" type="text" placeholder="https://www.youtube.com/watch?v=... or 11-char ID" />
+        </div>
+        <div class="pl-add-actions">
+          <button id="previewYoutubeBtn" class="pl-pill" type="button">Preview</button>
+          <button id="addYoutubeBtn" class="pl-primary-btn" type="button">Add</button>
+        </div>
+        <div id="youtubePreview" class="pl-youtube-preview" hidden>
+          <img id="youtubePreviewImg" alt="YouTube preview" />
+          <div>
+            <div id="youtubePreviewTitle" class="pl-preview-title"></div>
+            <div id="youtubePreviewId" class="pl-preview-id"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <main class="pl-board-wrap">
     <div class="pl-board" id="pipelineBoard">
