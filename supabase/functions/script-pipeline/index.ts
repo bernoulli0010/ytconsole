@@ -180,6 +180,150 @@ async function fetchCaptionSegmentsByLang(videoId: string, lang: string): Promis
   return segments;
 }
 
+type WatchCaptionTrack = {
+  baseUrl: string;
+  languageCode: string;
+  kind: string;
+};
+
+function parseJsonArrayAfterKey(raw: string, key: string): unknown[] {
+  const keyIndex = raw.indexOf(key);
+  if (keyIndex === -1) return [];
+
+  const arrayStart = raw.indexOf("[", keyIndex);
+  if (arrayStart === -1) return [];
+
+  let i = arrayStart;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  while (i < raw.length) {
+    const ch = raw[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+    } else {
+      if (ch === '"') {
+        inString = true;
+      } else if (ch === "[") {
+        depth += 1;
+      } else if (ch === "]") {
+        depth -= 1;
+        if (depth === 0) {
+          const jsonArray = raw.slice(arrayStart, i + 1);
+          try {
+            const parsed = JSON.parse(jsonArray);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        }
+      }
+    }
+    i += 1;
+  }
+
+  return [];
+}
+
+async function fetchWatchPageCaptionTracks(videoId: string): Promise<WatchCaptionTrack[]> {
+  const response = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en`, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Watch page alınamadı (${response.status}).`);
+  }
+
+  const html = await response.text();
+  const rawTracks = parseJsonArrayAfterKey(html, '"captionTracks":');
+  const tracks: WatchCaptionTrack[] = rawTracks
+    .map((item) => {
+      const rec = (item || {}) as Record<string, unknown>;
+      return {
+        baseUrl: safeStr(rec.baseUrl),
+        languageCode: safeStr(rec.languageCode),
+        kind: safeStr(rec.kind),
+      };
+    })
+    .filter((t) => t.baseUrl.length > 0);
+
+  if (!tracks.length) {
+    throw new Error("Watch page caption track bulunamadı.");
+  }
+
+  return tracks;
+}
+
+function segmentsFromJson3Data(data: Record<string, unknown>): CaptionSegment[] {
+  const events = Array.isArray(data?.events) ? data.events : [];
+  const segments: CaptionSegment[] = [];
+
+  for (const ev of events) {
+    const eventObj = (ev || {}) as Record<string, unknown>;
+    const segs = Array.isArray(eventObj.segs) ? eventObj.segs : [];
+    if (!segs.length) continue;
+
+    const rawText = segs
+      .map((s) => safeStr(((s || {}) as Record<string, unknown>).utf8 || ""))
+      .join(" ");
+    const text = cleanText(rawText);
+    if (!text) continue;
+
+    const start = safeNum(eventObj.tStartMs) / 1000;
+    const dur = Math.max(0.2, safeNum(eventObj.dDurationMs, 1200) / 1000);
+    segments.push({ text, start, end: start + dur, duration: dur });
+  }
+
+  return segments;
+}
+
+async function fetchCaptionSegmentsFromBaseUrl(baseUrl: string, tlang = ""): Promise<CaptionSegment[]> {
+  if (!baseUrl) throw new Error("Base URL boş.");
+
+  const url = new URL(baseUrl);
+  url.searchParams.set("fmt", "json3");
+  if (tlang) {
+    url.searchParams.set("tlang", tlang);
+  }
+
+  const jsonResp = await fetch(url.toString(), { headers: { "User-Agent": "Mozilla/5.0" } });
+  if (jsonResp.ok) {
+    try {
+      const data = (await jsonResp.json()) as Record<string, unknown>;
+      const segments = segmentsFromJson3Data(data);
+      if (segments.length) return segments;
+    } catch {
+      // fallback to xml
+    }
+  }
+
+  const xmlUrl = new URL(baseUrl);
+  xmlUrl.searchParams.delete("fmt");
+  if (tlang) {
+    xmlUrl.searchParams.set("tlang", tlang);
+  }
+
+  const xmlResp = await fetch(xmlUrl.toString(), { headers: { "User-Agent": "Mozilla/5.0" } });
+  if (!xmlResp.ok) {
+    throw new Error(`Caption baseUrl alınamadı (${xmlResp.status}).`);
+  }
+
+  const xml = await xmlResp.text();
+  const segments = parseXmlCaptionSegments(xml);
+  if (!segments.length) {
+    throw new Error("Caption baseUrl boş döndü.");
+  }
+
+  return segments;
+}
+
 function chooseTrack(tracks: Record<string, string>[], preferredLang = "tr"): Record<string, string> {
   const pref = preferredLang.toLowerCase();
   const exact = tracks.find((t) => safeStr(t.lang_code).toLowerCase() === pref && safeStr(t.kind).toLowerCase() !== "asr");
@@ -461,6 +605,7 @@ serve(async (req) => {
       } catch {
         const fallbackLangs = ["tr", "en"];
         let capturedError = "";
+
         for (const lang of fallbackLangs) {
           try {
             segments = await fetchCaptionSegmentsByLang(videoId, lang);
@@ -468,6 +613,46 @@ serve(async (req) => {
             break;
           } catch (e) {
             capturedError = e instanceof Error ? e.message : "fallback failed";
+          }
+        }
+
+        if (!segments.length) {
+          try {
+            const watchTracks = await fetchWatchPageCaptionTracks(videoId);
+            const prioritized = [...watchTracks].sort((a, b) => {
+              const score = (t: WatchCaptionTrack) => {
+                const lang = normalizeLang(t.languageCode);
+                if (lang === "tr") return 0;
+                if (lang === "en") return 1;
+                if (safeStr(t.kind).toLowerCase() === "asr") return 3;
+                return 2;
+              };
+              return score(a) - score(b);
+            });
+
+            for (const track of prioritized.slice(0, 8)) {
+              try {
+                segments = await fetchCaptionSegmentsFromBaseUrl(track.baseUrl);
+                sourceLang = normalizeLang(track.languageCode) || "auto";
+                if (segments.length) break;
+              } catch {
+                // Try translated fallback from this track.
+              }
+
+              for (const tlang of ["tr", "en"]) {
+                try {
+                  segments = await fetchCaptionSegmentsFromBaseUrl(track.baseUrl, tlang);
+                  sourceLang = tlang;
+                  break;
+                } catch (e) {
+                  capturedError = e instanceof Error ? e.message : capturedError;
+                }
+              }
+
+              if (segments.length) break;
+            }
+          } catch (e) {
+            capturedError = e instanceof Error ? e.message : capturedError;
           }
         }
 
