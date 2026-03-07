@@ -40,6 +40,9 @@ const SUPABASE_URL = "https://bjcsbuvjumaigvsjphor.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Ws-ubr-U3Uryo-oJxE0rvg_QTlz2Kqa";
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 const SCRIPT_TRANSFER_KEY = "ytconsole_script_transfer_v1";
+const DEFAULT_PIXELS_PER_SECOND = 30;
+const MIN_SCENE_DURATION = 1;
+const MAX_SCENE_DURATION = 120;
 
 // Drag & Drop State for Overlays
 let activeDragOverlay = null;
@@ -48,6 +51,8 @@ let dragStartX = 0;
 let dragStartY = 0;
 let dragInitialX = 0;
 let dragInitialY = 0;
+let playbackRafId = null;
+let lastPlaybackTick = 0;
 
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
@@ -73,6 +78,137 @@ function estimateSceneDuration(text) {
   return Math.max(3.0, wordCount / 2.5);
 }
 
+function normalizeSceneDuration(rawDuration, fallbackDuration) {
+  let duration = Number(rawDuration);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    duration = Number(fallbackDuration);
+  }
+  if (!Number.isFinite(duration) || duration <= 0) {
+    duration = 8;
+  }
+
+  if (duration > 300) {
+    duration = duration / 1000;
+  }
+
+  duration = Math.max(MIN_SCENE_DURATION, Math.min(MAX_SCENE_DURATION, duration));
+  return Number(duration.toFixed(2));
+}
+
+function getPixelsPerSecond() {
+  return DEFAULT_PIXELS_PER_SECOND;
+}
+
+function getSceneStartTime(sceneId) {
+  let offset = 0;
+  for (const scene of projectState.scenes) {
+    if (scene.id === sceneId) return offset;
+    offset += scene.duration;
+  }
+  return 0;
+}
+
+function getSceneAtTime(time) {
+  if (!projectState.scenes.length) return null;
+  if (time <= 0) {
+    return {
+      scene: projectState.scenes[0],
+      sceneStart: 0,
+      timeIntoScene: 0
+    };
+  }
+
+  let sceneStart = 0;
+  for (const scene of projectState.scenes) {
+    const sceneEnd = sceneStart + scene.duration;
+    if (time <= sceneEnd) {
+      return {
+        scene,
+        sceneStart,
+        timeIntoScene: Math.max(0, time - sceneStart)
+      };
+    }
+    sceneStart = sceneEnd;
+  }
+
+  const lastScene = projectState.scenes[projectState.scenes.length - 1];
+  return {
+    scene: lastScene,
+    sceneStart: Math.max(0, projectState.totalDuration - lastScene.duration),
+    timeIntoScene: Math.max(0, lastScene.duration - 0.05)
+  };
+}
+
+function syncSceneMediaAtTime(scene, timeIntoScene) {
+  const player = document.getElementById('mainVideoPlayer');
+  const sceneAudio = document.getElementById(`audio-${scene.id}`);
+
+  if (scene.media && scene.media.type === 'video' && player && player.src) {
+    const mediaDuration = Number(player.duration);
+    if (Number.isFinite(mediaDuration) && mediaDuration > 0.1) {
+      const target = Math.max(0, Math.min(timeIntoScene, mediaDuration - 0.05));
+      if (Math.abs(player.currentTime - target) > 0.25) {
+        player.currentTime = target;
+      }
+    }
+  }
+
+  if (sceneAudio && sceneAudio.src) {
+    const audioDuration = Number(sceneAudio.duration);
+    if (Number.isFinite(audioDuration) && audioDuration > 0.1) {
+      const audioTarget = Math.max(0, Math.min(timeIntoScene, audioDuration - 0.05));
+      if (Math.abs(sceneAudio.currentTime - audioTarget) > 0.1) {
+        sceneAudio.currentTime = audioTarget;
+      }
+    }
+  }
+}
+
+function seekToTime(time, options = {}) {
+  const {
+    pausePlayback = false,
+    syncMedia = true,
+    keepPlaying = projectState.isPlaying,
+    forceRender = false
+  } = options;
+
+  if (pausePlayback && projectState.isPlaying) {
+    togglePlay();
+  }
+
+  const clamped = Math.max(0, Math.min(time, projectState.totalDuration));
+  projectState.currentTime = clamped;
+
+  const sceneInfo = getSceneAtTime(clamped);
+  if (sceneInfo && (forceRender || projectState.activeSceneId !== sceneInfo.scene.id)) {
+    projectState.activeSceneId = sceneInfo.scene.id;
+    renderScenes();
+    renderPropertiesPanel();
+  }
+
+  if (sceneInfo && syncMedia) {
+    syncSceneMediaAtTime(sceneInfo.scene, sceneInfo.timeIntoScene);
+  }
+
+  updatePlayhead();
+
+  const player = document.getElementById('mainVideoPlayer');
+  const sceneAudio = sceneInfo ? document.getElementById(`audio-${sceneInfo.scene.id}`) : null;
+  const bgMusicPlayer = document.getElementById('bgMusicPlayer');
+
+  if (keepPlaying) {
+    if (player && player.src) player.play().catch(() => {});
+    if (sceneAudio && sceneAudio.src) sceneAudio.play().catch(() => {});
+    if (bgMusicPlayer && bgMusicPlayer.src) {
+      const bgDuration = Number(bgMusicPlayer.duration);
+      if (Number.isFinite(bgDuration) && bgDuration > 0) {
+        bgMusicPlayer.currentTime = clamped % bgDuration;
+      }
+      bgMusicPlayer.play().catch(() => {});
+    }
+  }
+}
+
 function importScenesFromScriptStorage(showFeedback = true) {
   try {
     const raw = localStorage.getItem(SCRIPT_TRANSFER_KEY);
@@ -89,8 +225,7 @@ function importScenesFromScriptStorage(showFeedback = true) {
       .map((scene) => {
         const text = String(scene?.text || "").replace(/\s+/g, " ").trim();
         if (!text) return null;
-        const incomingDuration = Number(scene?.duration);
-        const duration = incomingDuration > 0 ? incomingDuration : estimateSceneDuration(text);
+        const duration = normalizeSceneDuration(scene?.duration, estimateSceneDuration(text));
 
         return {
           id: generateId(),
@@ -208,7 +343,7 @@ function bindEvents() {
       document.getElementById('projectTitle').value = projectState.title;
       projectState.scenes = [{
         id: generateId(), text: "", voice: "aura-asteria-en",
-      audioUrl: null, media: null, overlays: [], duration: 5.0, autoSearched: false
+      audioUrl: null, media: null, overlays: [], duration: normalizeSceneDuration(5.0, 5.0), autoSearched: false
       }];
       projectState.activeSceneId = projectState.scenes[0].id;
       projectState.currentTime = 0;
@@ -349,7 +484,7 @@ function bindEvents() {
     }
 
     const activeIndex = projectState.scenes.findIndex(s => s.id === projectState.activeSceneId);
-    const halfDuration = activeScene.duration / 2;
+    const halfDuration = normalizeSceneDuration(activeScene.duration / 2, activeScene.duration / 2);
 
     // Metni ikiye böl (kelime bazında)
     const words = activeScene.text.trim().split(/\s+/).filter(w => w.length > 0);
@@ -390,7 +525,7 @@ function bindEvents() {
       audioUrl: null,
       media: null,
       overlays: [],
-      duration: 3.0,
+      duration: normalizeSceneDuration(3.0, 3.0),
       autoSearched: false
     };
     projectState.scenes.push(newScene);
@@ -759,9 +894,7 @@ function renderScenes() {
     sceneEl.onclick = (e) => {
       // Prevent clicking textarea from instantly re-triggering if already active
       if (!isActive) {
-        projectState.activeSceneId = scene.id;
-        renderScenes(); // re-render to update active state
-        updatePreview();
+        seekToTime(getSceneStartTime(scene.id), { pausePlayback: true, forceRender: true });
       }
       renderPropertiesPanel();
     };
@@ -814,7 +947,7 @@ const handleTextChange = debounce((e) => {
     
     // Estimate duration based on word count (roughly 2.5 words per second)
     const wordCount = scene.text.trim().split(/\s+/).filter(w => w.length > 0).length;
-    scene.duration = Math.max(3.0, wordCount / 2.5); // Minimum 3 seconds
+    scene.duration = normalizeSceneDuration(wordCount / 2.5, 3.0);
     
     updateTotalDuration();
     renderTimeline();
@@ -977,7 +1110,7 @@ async function generateTTS(sceneId, isBatch = false) {
       
       // Load and update duration
       audioEl.onloadedmetadata = () => {
-        scene.duration = Math.max(3.0, audioEl.duration);
+        scene.duration = normalizeSceneDuration(audioEl.duration, scene.duration);
         updateTotalDuration();
         renderTimeline();
       };
@@ -1310,9 +1443,10 @@ window.updateOverlayProp = (id, prop, value) => {
 window.updateSceneDuration = (val, id) => {
   const scene = projectState.scenes.find(s => s.id === id);
   if (scene) {
-    scene.duration = parseFloat(val);
+    scene.duration = normalizeSceneDuration(val, scene.duration);
     updateTotalDuration();
     renderTimeline();
+    seekToTime(projectState.currentTime, { syncMedia: true, keepPlaying: projectState.isPlaying });
   }
 };
 
@@ -1864,8 +1998,9 @@ function updatePreview() {
       player.style.display = 'block';
       if (player.src !== activeScene.media.url) {
         player.src = activeScene.media.url;
-        // Ensure the video plays immediately if we just assigned it
-        player.play().catch(e => console.log("Auto-play prevented by browser policy", e));
+        if (projectState.isPlaying) {
+          player.play().catch(e => console.log("Auto-play prevented by browser policy", e));
+        }
       }
     }
   } else {
@@ -1961,8 +2096,7 @@ let resizeInitialDuration = 0;
 
 function initTimelineInteractions() {
   const container = document.getElementById('timelineContainer');
-  const playhead = document.getElementById('playhead');
-  const pixelsPerSecond = 30;
+  const pixelsPerSecond = getPixelsPerSecond();
 
   // 1. Seek on timeline click
   container.addEventListener('mousedown', (e) => {
@@ -2014,19 +2148,16 @@ function initTimelineInteractions() {
 
   function updateSeekPosition(clientX) {
     const rect = container.getBoundingClientRect();
-    // Padding/margin offset for playhead is typically 0 for the start of the tracks
-    let x = clientX - rect.left;
+    let x = clientX - rect.left + container.scrollLeft;
     
     // Constrain to bounds
     x = Math.max(0, Math.min(x, projectState.totalDuration * pixelsPerSecond));
     
-    projectState.currentTime = x / pixelsPerSecond;
-    updatePlayhead();
-    
-    const bgMusicPlayer = document.getElementById('bgMusicPlayer');
-    if (bgMusicPlayer && bgMusicPlayer.src) {
-      bgMusicPlayer.currentTime = projectState.currentTime % bgMusicPlayer.duration || projectState.currentTime;
-    }
+    seekToTime(x / pixelsPerSecond, {
+      syncMedia: true,
+      keepPlaying: false,
+      forceRender: true
+    });
   }
 
   function handleClipResize(clientX) {
@@ -2038,15 +2169,13 @@ function initTimelineInteractions() {
 
     if (resizeEdge === 'right') {
       let newDuration = resizeInitialDuration + durationDelta;
-      newDuration = Math.max(1, newDuration); // Minimum 1 second
-      scene.duration = parseFloat(newDuration.toFixed(1));
+      scene.duration = normalizeSceneDuration(newDuration, scene.duration);
     } else if (resizeEdge === 'left') {
       // Modifying the left edge actually means changing the duration AND moving the start point,
       // but since our scenes flow sequentially, changing duration of scene N affects all N+1 scenes.
       // For simplicity in a sequential builder, left drag also just changes duration in reverse.
       let newDuration = resizeInitialDuration - durationDelta;
-      newDuration = Math.max(1, newDuration);
-      scene.duration = parseFloat(newDuration.toFixed(1));
+      scene.duration = normalizeSceneDuration(newDuration, scene.duration);
     }
     
     // Fast visual update
@@ -2057,8 +2186,12 @@ function initTimelineInteractions() {
 
 // -- Timeline & Playback --
 function updateTotalDuration() {
-  projectState.totalDuration = projectState.scenes.reduce((acc, scene) => acc + scene.duration, 0);
-  document.getElementById('timeDisplay').textContent = `0:00 / ${formatTime(projectState.totalDuration)}`;
+  projectState.scenes.forEach((scene) => {
+    scene.duration = normalizeSceneDuration(scene.duration, estimateSceneDuration(scene.text));
+  });
+  projectState.totalDuration = Number(projectState.scenes.reduce((acc, scene) => acc + scene.duration, 0).toFixed(2));
+  projectState.currentTime = Math.max(0, Math.min(projectState.currentTime, projectState.totalDuration));
+  document.getElementById('timeDisplay').textContent = `${formatTime(projectState.currentTime)} / ${formatTime(projectState.totalDuration)}`;
 }
 
 function renderTimeline() {
@@ -2078,7 +2211,7 @@ function renderTimeline() {
   }
   bgMusicTrack.innerHTML = '';
   
-  const pixelsPerSecond = 30; // 30px per second for timeline scale
+  const pixelsPerSecond = getPixelsPerSecond();
   
   // -- Render Ruler --
   const ruler = document.getElementById('timelineRuler');
@@ -2125,9 +2258,13 @@ function renderTimeline() {
     vClip.onclick = (e) => {
       // Ignore click if clicking resize handles
       if (e.target.classList.contains('clip-resize-handle')) return;
-      
-      projectState.activeSceneId = scene.id;
-      renderScenes();
+
+      seekToTime(getSceneStartTime(scene.id), {
+        pausePlayback: true,
+        syncMedia: true,
+        keepPlaying: false,
+        forceRender: true
+      });
     };
     
     videoTrack.appendChild(vClip);
@@ -2166,6 +2303,8 @@ function renderTimeline() {
   } else {
     bgMusicTrack.style.display = 'none';
   }
+
+  updatePlayhead();
 }
 
 function formatTime(seconds) {
@@ -2174,103 +2313,102 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-let playbackInterval;
 function togglePlay() {
   projectState.isPlaying = !projectState.isPlaying;
   const playIcon = document.querySelector('.icon-play');
   const pauseIcon = document.querySelector('.icon-pause');
   const player = document.getElementById('mainVideoPlayer');
-  const currentSceneAudio = document.getElementById(`audio-${projectState.activeSceneId}`);
   const bgMusicPlayer = document.getElementById('bgMusicPlayer');
 
   if (projectState.isPlaying) {
     playIcon.style.display = 'none';
     pauseIcon.style.display = 'block';
-    
-    if (player && player.src) player.play();
-    if (currentSceneAudio && currentSceneAudio.src) {
-        // Calculate where the audio should be based on scene offset
-        let offset = 0;
-        for (let s of projectState.scenes) {
-            if (s.id === projectState.activeSceneId) break;
-            offset += s.duration;
-        }
-        const audioCurrentTime = projectState.currentTime - offset;
-        if (audioCurrentTime >= 0 && audioCurrentTime < currentSceneAudio.duration) {
-            currentSceneAudio.currentTime = audioCurrentTime;
-            currentSceneAudio.play().catch(e => console.error(e));
-        }
-    }
-    
-    if (bgMusicPlayer && bgMusicPlayer.src) {
-        bgMusicPlayer.currentTime = projectState.currentTime % bgMusicPlayer.duration || projectState.currentTime;
-        bgMusicPlayer.play().catch(e => console.error(e));
-    }
-    
-    playbackInterval = setInterval(() => {
-      projectState.currentTime += 0.1;
-      if (projectState.currentTime >= projectState.totalDuration) {
-        projectState.currentTime = 0;
-        togglePlay(); // Pause at end
+
+    seekToTime(projectState.currentTime, {
+      syncMedia: true,
+      keepPlaying: true,
+      forceRender: true
+    });
+
+    lastPlaybackTick = performance.now();
+    const tick = (now) => {
+      if (!projectState.isPlaying) return;
+
+      const elapsed = Math.max(0, (now - lastPlaybackTick) / 1000);
+      lastPlaybackTick = now;
+      const nextTime = projectState.currentTime + elapsed;
+
+      if (nextTime >= projectState.totalDuration) {
+        seekToTime(projectState.totalDuration, {
+          syncMedia: true,
+          keepPlaying: false,
+          forceRender: true
+        });
+        togglePlay();
+        return;
       }
-      updatePlayhead();
-    }, 100);
+
+      seekToTime(nextTime, {
+        syncMedia: false,
+        keepPlaying: false
+      });
+
+      playbackRafId = requestAnimationFrame(tick);
+    };
+
+    playbackRafId = requestAnimationFrame(tick);
   } else {
     playIcon.style.display = 'block';
     pauseIcon.style.display = 'none';
-    
+
     if (player && player.src) player.pause();
-    if (currentSceneAudio && currentSceneAudio.src) currentSceneAudio.pause();
+    projectState.scenes.forEach((scene) => {
+      const sceneAudio = document.getElementById(`audio-${scene.id}`);
+      if (sceneAudio && sceneAudio.src) sceneAudio.pause();
+    });
     if (bgMusicPlayer && bgMusicPlayer.src) bgMusicPlayer.pause();
-    
-    clearInterval(playbackInterval);
+
+    if (playbackRafId) {
+      cancelAnimationFrame(playbackRafId);
+      playbackRafId = null;
+    }
   }
 }
 
 function updatePlayhead() {
-  const pixelsPerSecond = 30;
+  const pixelsPerSecond = getPixelsPerSecond();
   const playhead = document.getElementById('playhead');
-  // Ruler starts right at the edge in tracks-container, so offset is just for visual padding if needed.
-  // Actually, left should just be currentTime * pixelsPerSecond.
   playhead.style.left = `${projectState.currentTime * pixelsPerSecond}px`;
-  
+
   document.getElementById('timeDisplay').textContent = `${formatTime(projectState.currentTime)} / ${formatTime(projectState.totalDuration)}`;
-  
-  // Update active scene based on time
-  let timeAccumulator = 0;
-  for (let scene of projectState.scenes) {
-    timeAccumulator += scene.duration;
-      if (projectState.currentTime <= timeAccumulator) {
-      if (projectState.activeSceneId !== scene.id) {
-        // Pause ALL other scene audios to be safe
-        projectState.scenes.forEach(s => {
-           if (s.id !== scene.id) {
-              const otherAudio = document.getElementById(`audio-${s.id}`);
-              if (otherAudio && !otherAudio.paused) otherAudio.pause();
-           }
-        });
-        
-        projectState.activeSceneId = scene.id;
-        renderScenes(); // updates UI and preview
-        
-        // Ensure video and new audio is playing if active
-        if (projectState.isPlaying) {
-          const player = document.getElementById('mainVideoPlayer');
-          if (player && player.src) player.play();
-          
-          const newSceneAudio = document.getElementById(`audio-${scene.id}`);
-          if (newSceneAudio && newSceneAudio.src) {
-             // Calculate exactly where the audio should start based on the offset into the scene
-             const sceneStartOffset = timeAccumulator - scene.duration;
-             const timeIntoScene = projectState.currentTime - sceneStartOffset;
-             if (timeIntoScene >= 0 && timeIntoScene < newSceneAudio.duration) {
-                 newSceneAudio.currentTime = timeIntoScene;
-                 newSceneAudio.play().catch(e => console.error("Audio auto-play prevented:", e));
-             }
-          }
-        }
+
+  const sceneInfo = getSceneAtTime(projectState.currentTime);
+  if (!sceneInfo) return;
+
+  if (projectState.activeSceneId !== sceneInfo.scene.id) {
+    projectState.scenes.forEach((scene) => {
+      if (scene.id !== sceneInfo.scene.id) {
+        const otherAudio = document.getElementById(`audio-${scene.id}`);
+        if (otherAudio && !otherAudio.paused) otherAudio.pause();
       }
-      break;
+    });
+
+    projectState.activeSceneId = sceneInfo.scene.id;
+    renderScenes();
+    renderPropertiesPanel();
+
+    if (projectState.isPlaying) {
+      syncSceneMediaAtTime(sceneInfo.scene, sceneInfo.timeIntoScene);
+    }
+  }
+
+  const timelineContainer = document.getElementById('timelineContainer');
+  if (timelineContainer) {
+    const targetX = projectState.currentTime * pixelsPerSecond;
+    const leftBound = timelineContainer.scrollLeft;
+    const rightBound = leftBound + timelineContainer.clientWidth;
+    if (targetX < leftBound || targetX > rightBound) {
+      timelineContainer.scrollLeft = Math.max(0, targetX - timelineContainer.clientWidth * 0.35);
     }
   }
 }
