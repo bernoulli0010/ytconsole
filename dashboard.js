@@ -25,6 +25,59 @@ function toast(msg) {
   setTimeout(() => t.classList.remove("is-visible"), 3000);
 }
 
+/* ── Animated Dashboard Background ── */
+function buildBackgroundPaths(svgId, position) {
+  const svg = $(svgId);
+  if (!svg) return;
+
+  svg.innerHTML = "";
+  const pathCount = window.matchMedia("(max-width: 640px)").matches ? 24 : 36;
+
+  for (let i = 0; i < pathCount; i++) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    const baseX = 380 - i * 5 * position;
+    const d = [
+      `M-${baseX} -${189 + i * 6}`,
+      `C-${baseX} -${189 + i * 6}`,
+      `-${312 - i * 5 * position} ${216 - i * 6}`,
+      `${152 - i * 5 * position} ${343 - i * 6}`,
+      `C${616 - i * 5 * position} ${470 - i * 6}`,
+      `${684 - i * 5 * position} ${875 - i * 6}`,
+      `${684 - i * 5 * position} ${875 - i * 6}`
+    ].join(" ");
+
+    path.setAttribute("d", d);
+    path.setAttribute("class", "dashboard-path");
+    path.setAttribute("stroke-width", (0.45 + i * 0.03).toFixed(2));
+    path.setAttribute("stroke-opacity", String(Math.min(0.65, 0.08 + i * 0.02)));
+
+    const duration = 18 + Math.random() * 12;
+    const pulseDuration = 6 + (i % 6) * 1.2;
+    path.style.animationDuration = `${duration}s, ${pulseDuration}s`;
+    path.style.animationDelay = `${-1 * i * 0.45}s, ${-1 * i * 0.2}s`;
+
+    svg.appendChild(path);
+    const totalLength = Math.max(1, Math.round(path.getTotalLength()));
+    path.style.setProperty("--path-length", String(totalLength));
+    path.style.strokeDasharray = `${Math.round(totalLength * 0.34)} ${Math.round(totalLength * 0.66)}`;
+  }
+}
+
+function initBackgroundPaths() {
+  if (!$("dashboardPathsLeft") || !$("dashboardPathsRight")) return;
+  buildBackgroundPaths("dashboardPathsLeft", 1);
+  buildBackgroundPaths("dashboardPathsRight", -1);
+
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      buildBackgroundPaths("dashboardPathsLeft", 1);
+      buildBackgroundPaths("dashboardPathsRight", -1);
+    }, 140);
+  });
+}
+
 /* ── Auth Service ── */
 const AuthService = {
   currentUser: null,
@@ -786,6 +839,9 @@ function init() {
 
   // Wire events
   wire();
+
+  // Animated dashboard background
+  initBackgroundPaths();
 }
 
 init();
