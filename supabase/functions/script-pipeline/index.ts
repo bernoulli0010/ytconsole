@@ -389,21 +389,20 @@ function transcriptFromSegments(segments: CaptionSegment[]): string {
 }
 
 function splitTextForFallback(text: string): string[] {
-  const normalized = cleanText((text || "").replace(/\r/g, "")).trim();
+  const normalized = (text || "").replace(/\r/g, "").trim();
   if (!normalized) return [];
 
   const lineParts = normalized
     .split("\n")
     .map((line) => cleanText(line))
-    .filter((line) => line.length >= 20);
+    .filter((line) => line.length > 0);
 
-  if (lineParts.length >= 3) return lineParts.slice(0, 40);
+  if (lineParts.length >= 2) return lineParts;
 
   return normalized
     .split(/(?<=[.!?])\s+/)
     .map((s) => cleanText(s))
-    .filter((s) => s.length >= 20)
-    .slice(0, 40);
+    .filter((s) => s.length > 0);
 }
 
 function buildSegmentsFromPlainText(text: string): CaptionSegment[] {
@@ -442,6 +441,46 @@ function normalizeApifyTranscript(raw: unknown): string {
       .join(" ");
   }
   return "";
+}
+
+function parseApifyTranscriptSegments(raw: unknown): CaptionSegment[] {
+  if (!Array.isArray(raw)) return [];
+
+  const segments: CaptionSegment[] = [];
+  let cursor = 0;
+
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const rec = row as Record<string, unknown>;
+    const text = cleanText(safeStr(rec.text || rec.transcript || rec.value || ""));
+    if (!text) continue;
+
+    const startVal = safeNum(rec.start, Number.NaN);
+    const endVal = safeNum(rec.end, Number.NaN);
+    const durationVal = safeNum(rec.duration, Number.NaN);
+
+    const words = text.split(/\s+/).filter(Boolean).length;
+    const defaultDuration = Math.min(12, Math.max(1.6, words / 2.8));
+
+    const start = Number.isFinite(startVal) ? startVal : cursor;
+    const duration = Number.isFinite(durationVal)
+      ? Math.max(0.2, durationVal)
+      : Number.isFinite(endVal)
+        ? Math.max(0.2, endVal - start)
+        : defaultDuration;
+    const end = Number.isFinite(endVal) ? Math.max(start + 0.2, endVal) : start + duration;
+
+    segments.push({
+      text,
+      start: Number(start.toFixed(3)),
+      end: Number(end.toFixed(3)),
+      duration: Number((end - start).toFixed(3)),
+    });
+
+    cursor = end;
+  }
+
+  return segments;
 }
 
 async function fetchApifyTranscript(videoUrl: string): Promise<ApifyOutput | null> {
@@ -484,16 +523,13 @@ async function fetchApifyTranscript(videoUrl: string): Promise<ApifyOutput | nul
   }
 
   const item = items[0] as Record<string, unknown>;
-  const transcriptRaw =
-    item.transcript_text ||
-    item.transcript ||
-    item.captions ||
-    item.subtitles ||
-    item.description ||
-    "";
+  const timedRaw = item.transcript || item.captions || item.subtitles;
+  const timedSegments = parseApifyTranscriptSegments(timedRaw);
 
-  const transcriptText = cleanText(normalizeApifyTranscript(transcriptRaw));
-  if (!transcriptText) {
+  const transcriptRaw = item.transcript_text || timedRaw || item.description || "";
+  const transcriptText = normalizeApifyTranscript(transcriptRaw).trim();
+
+  if (!timedSegments.length && !transcriptText) {
     throw new Error("Apify transcript metni boş döndü.");
   }
 
@@ -503,7 +539,7 @@ async function fetchApifyTranscript(videoUrl: string): Promise<ApifyOutput | nul
 
   return {
     sourceLang,
-    segments: buildSegmentsFromPlainText(transcriptText),
+    segments: timedSegments.length ? timedSegments : buildSegmentsFromPlainText(transcriptText),
   };
 }
 
