@@ -1,6 +1,5 @@
 <!doctype html>
 <html lang="tr">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,17 +9,16 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="placeholder.css" />
+  <link rel="stylesheet" href="script-yazimi.css" />
 </head>
-
 <body>
   <header class="header">
     <div class="container header-inner">
       <a href="../index.html" class="brand">
         <div class="logo">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.4 31.4 0 0 0 0 12a31.4 31.4 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.4 31.4 0 0 0 24 12a31.4 31.4 0 0 0-.5-5.8z" fill="#fff"/>
-            <path d="M9.6 15.6V8.4l6.4 3.6-6.4 3.6z" fill="#6B1D2A"/>
+            <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.4 31.4 0 0 0 0 12a31.4 31.4 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.4 31.4 0 0 0 24 12a31.4 31.4 0 0 0-.5-5.8z" fill="#fff" />
+            <path d="M9.6 15.6V8.4l6.4 3.6-6.4 3.6z" fill="#6B1D2A" />
           </svg>
         </div>
         <div>
@@ -30,7 +28,7 @@
       </a>
       <div class="header-actions">
         <a href="../index.html" class="btn-secondary mini">Ana Sayfa</a>
-        <button class="btn-icon" id="themeToggle" type="button" title="Tema Degistir">
+        <button class="btn-icon" id="themeToggle" type="button" title="Tema Değiştir">
           <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
           </svg>
@@ -51,33 +49,92 @@
   </header>
 
   <main class="container main">
-    <div class="placeholder-content">
-      <div class="placeholder-icon">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#00838F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 20h9"/>
-          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-        </svg>
+    <section class="step-section pipeline-intro">
+      <div class="step-header">
+        <div class="step-badge">AI</div>
+        <h1 class="step-title">Video Script Üretim Pipeline</h1>
       </div>
-      <h1>Script Yazımı</h1>
-      <p>Bu bölüm yakında sizlerle!</p>
-      <p class="placeholder-desc">Script yazımı aracımız ile video scriptlerinizi yapay zeka ile kolayca oluşturabileceksiniz.</p>
-      <div class="placeholder-features">
-        <div class="feature-badge">AI Destekli Yazım</div>
-        <div class="feature-badge">Şablonlar</div>
-        <div class="feature-badge">Düzenleme</div>
-        <div class="feature-badge">Telefon</div>
+      <p class="intro-desc">YouTube linkini gir, transcript çıkar, Türkçeye çevir, anlamlı 8 saniyelik bölümlere ayır, istediğin dile çevir ve tek tıkla Video Üretim Hattı'na aktar.</p>
+    </section>
+
+    <section class="step-section">
+      <div class="step-header"><div class="step-badge">1</div><h2 class="step-title">Video linkinden transcript çıkar</h2></div>
+      <div class="form-stack">
+        <div class="field">
+          <label class="label" for="videoUrlInput">YouTube Video Linki</label>
+          <input id="videoUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+        </div>
+        <button class="btn-fetch" id="extractTranscriptBtn">Transcript Çıkar</button>
+        <div class="meta-note" id="extractMeta"></div>
+        <div class="field">
+          <label class="label" for="transcriptOutput">Transcript</label>
+          <textarea id="transcriptOutput" class="output-text" readonly placeholder="Transcript burada görünecek..."></textarea>
+        </div>
       </div>
-      <a href="../index.html" class="btn-primary">Ana Sayfaya Dön</a>
-    </div>
+    </section>
+
+    <section class="step-section">
+      <div class="step-header"><div class="step-badge">2</div><h2 class="step-title">Türkçe çeviri</h2></div>
+      <div class="form-stack">
+        <button class="btn-fetch" id="translateTrBtn">Türkçeye Çevir</button>
+        <div class="field">
+          <label class="label" for="turkishOutput">Türkçe Metin</label>
+          <textarea id="turkishOutput" class="output-text" readonly placeholder="Türkçe çeviri burada görünecek..."></textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-section">
+      <div class="step-header"><div class="step-badge">3</div><h2 class="step-title">Anlamlı 8 saniyelik parçalara böl</h2></div>
+      <div class="form-stack">
+        <button class="btn-fetch" id="segmentBtn">8sn Bölümlere Ayır</button>
+        <div class="field">
+          <label class="label" for="segmentedOutput">Bölüm Bölüm Metin (Boşluklu satır düzeni)</label>
+          <textarea id="segmentedOutput" class="output-text" readonly placeholder="Her bölüm ayrı paragraf olarak görünecek..."></textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-section">
+      <div class="step-header"><div class="step-badge">4</div><h2 class="step-title">Bölümleri hedef dile çevir</h2></div>
+      <div class="form-stack">
+        <div class="field">
+          <label class="label" for="targetLanguageSelect">Hedef Dil</label>
+          <select id="targetLanguageSelect">
+            <option value="tr">Türkçe</option>
+            <option value="en">English</option>
+            <option value="de">Deutsch</option>
+            <option value="fr">Français</option>
+            <option value="es">Español</option>
+            <option value="ar">العربية</option>
+            <option value="ru">Русский</option>
+          </select>
+        </div>
+        <button class="btn-fetch" id="translateFinalBtn">Seçilen Dile Çevir</button>
+        <div class="field">
+          <label class="label" for="finalOutput">Final Bölüm Metni</label>
+          <textarea id="finalOutput" class="output-text" readonly placeholder="Hedef dilde bölüm metinleri burada görünecek..."></textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-section">
+      <div class="step-header"><div class="step-badge">5</div><h2 class="step-title">Video Üretim Hattı'na aktar</h2></div>
+      <div class="form-stack">
+        <button class="btn-primary" id="transferBtn" type="button">Senaryolara Aktar</button>
+        <p class="meta-note">Aktarım 4. adım çıktısından yapılır ve metinler Video Üretim Hattı'nda bölüm bölüm sahnelere yerleşir.</p>
+      </div>
+    </section>
+
+    <div id="statusBox" class="status-box" aria-live="polite"></div>
   </main>
 
   <footer class="container footer">
-    <div class="footer-left">
-      <span>YTConsole © 2026</span>
-    </div>
+    <div class="footer-left"><span>YTConsole © 2026</span></div>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="shared-navbar.js"></script>
+  <script src="script-yazimi.js"></script>
 </body>
-
 </html>

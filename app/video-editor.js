@@ -39,6 +39,7 @@ let projectState = {
 const SUPABASE_URL = "https://bjcsbuvjumaigvsjphor.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Ws-ubr-U3Uryo-oJxE0rvg_QTlz2Kqa";
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const SCRIPT_TRANSFER_KEY = "ytconsole_script_transfer_v1";
 
 // Drag & Drop State for Overlays
 let activeDragOverlay = null;
@@ -50,7 +51,10 @@ let dragInitialY = 0;
 
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
-  projectState.activeSceneId = projectState.scenes[0].id;
+  const hasImportedScenes = importScenesFromScriptStorage(false);
+  if (!hasImportedScenes) {
+    projectState.activeSceneId = projectState.scenes[0].id;
+  }
   
   initUI();
   bindEvents();
@@ -58,12 +62,78 @@ document.addEventListener("DOMContentLoaded", () => {
   renderTimeline();
   
   // Auto-search for the initial scene if it has text
-  if (projectState.scenes[0].text && !projectState.scenes[0].media) {
+  if (!hasImportedScenes && projectState.scenes[0].text && !projectState.scenes[0].media) {
     autoSearchMediaForScene(projectState.scenes[0]);
   }
 });
 
 // -- Utility Functions --
+function estimateSceneDuration(text) {
+  const wordCount = (text || "").trim().split(/\s+/).filter(w => w.length > 0).length;
+  return Math.max(3.0, wordCount / 2.5);
+}
+
+function importScenesFromScriptStorage(showFeedback = true) {
+  try {
+    const raw = localStorage.getItem(SCRIPT_TRANSFER_KEY);
+    if (!raw) {
+      if (showFeedback) {
+        alert("Aktarılacak script bulunamadı. Önce Script Yazımı sayfasından aktarım yapın.");
+      }
+      return false;
+    }
+
+    const payload = JSON.parse(raw);
+    const imported = Array.isArray(payload?.scenes) ? payload.scenes : [];
+    const normalizedScenes = imported
+      .map((scene) => {
+        const text = String(scene?.text || "").replace(/\s+/g, " ").trim();
+        if (!text) return null;
+        const incomingDuration = Number(scene?.duration);
+        const duration = incomingDuration > 0 ? incomingDuration : estimateSceneDuration(text);
+
+        return {
+          id: generateId(),
+          text,
+          voice: "aura-asteria-en",
+          audioUrl: null,
+          media: null,
+          overlays: [],
+          duration,
+          autoSearched: false
+        };
+      })
+      .filter(Boolean);
+
+    if (!normalizedScenes.length) {
+      localStorage.removeItem(SCRIPT_TRANSFER_KEY);
+      if (showFeedback) {
+        alert("Aktarım verisinde geçerli bölüm bulunamadı.");
+      }
+      return false;
+    }
+
+    projectState.title = String(payload?.title || "Script Aktarımı").trim() || "Script Aktarımı";
+    projectState.scenes = normalizedScenes;
+    projectState.activeSceneId = normalizedScenes[0].id;
+    projectState.currentTime = 0;
+    updateTotalDuration();
+
+    localStorage.removeItem(SCRIPT_TRANSFER_KEY);
+
+    if (showFeedback) {
+      alert(`Script başarıyla aktarıldı. ${normalizedScenes.length} bölüm yüklendi.`);
+    }
+    return true;
+  } catch (e) {
+    console.error("Script import error:", e);
+    if (showFeedback) {
+      alert("Script aktarımı sırasında hata oluştu.");
+    }
+    return false;
+  }
+}
+
 function generateId() {
   return Math.random().toString(36).substr(2, 9);
 }
@@ -91,6 +161,19 @@ function bindEvents() {
   if (titleInput) {
     titleInput.addEventListener('input', (e) => {
       projectState.title = e.target.value || "Başlıksız";
+    });
+  }
+
+  const importScriptBtn = document.getElementById('importScriptBtn');
+  if (importScriptBtn) {
+    importScriptBtn.addEventListener('click', () => {
+      const imported = importScenesFromScriptStorage(true);
+      if (imported) {
+        renderScenes();
+        renderTimeline();
+        updatePreview();
+        renderPropertiesPanel();
+      }
     });
   }
 

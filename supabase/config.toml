@@ -397,3 +397,6 @@ verify_jwt = false
 
 [functions.search-channel]
 verify_jwt = false
+
+[functions.script-pipeline]
+verify_jwt = false

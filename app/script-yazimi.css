@@ -1,0 +1,71 @@
+.pipeline-intro {
+  position: relative;
+  overflow: hidden;
+}
+
+.pipeline-intro::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(107, 29, 42, 0.08), rgba(0, 131, 143, 0.08));
+  pointer-events: none;
+}
+
+.pipeline-intro .step-header,
+.pipeline-intro .intro-desc {
+  position: relative;
+  z-index: 1;
+}
+
+.intro-desc {
+  color: var(--text-muted);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.output-text {
+  min-height: 180px;
+  line-height: 1.5;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.meta-note {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.status-box {
+  margin-top: -8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 13px;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+}
+
+.status-box.is-error {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.status-box.is-success {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.btn-primary {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .output-text {
+    min-height: 160px;
+  }
+}
