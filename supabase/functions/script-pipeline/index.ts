@@ -90,11 +90,18 @@ async function fetchCaptionTracks(videoId: string): Promise<Record<string, strin
 
   const xml = await response.text();
   const tracks: Record<string, string>[] = [];
-  const trackRegex = /<track\s+([^>]+?)\/>/g;
+  const selfClosingTrackRegex = /<track\s+([^>]+?)\/>/g;
   let match: RegExpExecArray | null;
 
-  while ((match = trackRegex.exec(xml)) !== null) {
+  while ((match = selfClosingTrackRegex.exec(xml)) !== null) {
     tracks.push(parseTrackAttributes(match[1]));
+  }
+
+  if (!tracks.length) {
+    const openTrackRegex = /<track\s+([^>]*?)>/g;
+    while ((match = openTrackRegex.exec(xml)) !== null) {
+      tracks.push(parseTrackAttributes(match[1]));
+    }
   }
 
   if (!tracks.length) {
@@ -102,6 +109,75 @@ async function fetchCaptionTracks(videoId: string): Promise<Record<string, strin
   }
 
   return tracks;
+}
+
+function parseXmlCaptionSegments(xml: string): CaptionSegment[] {
+  const segments: CaptionSegment[] = [];
+  const textRegex = /<text\s+([^>]*?)>([\s\S]*?)<\/text>/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = textRegex.exec(xml)) !== null) {
+    const attrs = parseTrackAttributes(match[1]);
+    const start = safeNum(attrs.start);
+    const dur = Math.max(0.2, safeNum(attrs.dur, 1.2));
+    const text = cleanText(decodeXmlEntities(match[2] || ""));
+    if (!text) continue;
+
+    segments.push({
+      text,
+      start,
+      end: start + dur,
+      duration: dur,
+    });
+  }
+
+  return segments;
+}
+
+async function fetchCaptionSegmentsByLang(videoId: string, lang: string): Promise<CaptionSegment[]> {
+  const jsonParams = new URLSearchParams({ v: videoId, lang, fmt: "json3" });
+  const jsonResponse = await fetch(`https://www.youtube.com/api/timedtext?${jsonParams.toString()}`, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+  });
+
+  if (jsonResponse.ok) {
+    try {
+      const data = await jsonResponse.json();
+      const events = Array.isArray(data?.events) ? data.events : [];
+      const segments: CaptionSegment[] = [];
+
+      for (const ev of events) {
+        if (!Array.isArray(ev?.segs)) continue;
+        const rawText = ev.segs.map((s: { utf8?: string }) => safeStr(s?.utf8 || "")).join(" ");
+        const text = cleanText(rawText);
+        if (!text) continue;
+
+        const start = safeNum(ev.tStartMs) / 1000;
+        const dur = Math.max(0.2, safeNum(ev.dDurationMs, 1200) / 1000);
+        segments.push({ text, start, end: start + dur, duration: dur });
+      }
+
+      if (segments.length) return segments;
+    } catch {
+      // Fallback to XML endpoint below.
+    }
+  }
+
+  const xmlParams = new URLSearchParams({ v: videoId, lang });
+  const xmlResponse = await fetch(`https://www.youtube.com/api/timedtext?${xmlParams.toString()}`, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+  });
+  if (!xmlResponse.ok) {
+    throw new Error(`Caption dili alınamadı: ${lang}`);
+  }
+
+  const xml = await xmlResponse.text();
+  const segments = parseXmlCaptionSegments(xml);
+  if (!segments.length) {
+    throw new Error(`Caption boş: ${lang}`);
+  }
+
+  return segments;
 }
 
 function chooseTrack(tracks: Record<string, string>[], preferredLang = "tr"): Record<string, string> {
@@ -374,9 +450,32 @@ serve(async (req) => {
       const videoId = extractVideoId(url);
       if (!videoId) throw new Error("Geçerli bir YouTube video linki girilmedi.");
 
-      const tracks = await fetchCaptionTracks(videoId);
-      const selected = chooseTrack(tracks, "tr");
-      const segments = await fetchCaptionSegments(videoId, selected);
+      let sourceLang = "auto";
+      let segments: CaptionSegment[] = [];
+
+      try {
+        const tracks = await fetchCaptionTracks(videoId);
+        const selected = chooseTrack(tracks, "tr");
+        sourceLang = normalizeLang(safeStr(selected.lang_code) || "auto");
+        segments = await fetchCaptionSegments(videoId, selected);
+      } catch {
+        const fallbackLangs = ["tr", "en"];
+        let capturedError = "";
+        for (const lang of fallbackLangs) {
+          try {
+            segments = await fetchCaptionSegmentsByLang(videoId, lang);
+            sourceLang = lang;
+            break;
+          } catch (e) {
+            capturedError = e instanceof Error ? e.message : "fallback failed";
+          }
+        }
+
+        if (!segments.length) {
+          throw new Error(`Videoda transcript/caption bulunamadı. ${capturedError ? `(${capturedError})` : ""}`.trim());
+        }
+      }
+
       const transcript = transcriptFromSegments(segments);
       const title = await fetchVideoTitle(videoId);
 
@@ -386,7 +485,7 @@ serve(async (req) => {
           action,
           videoId,
           title,
-          sourceLang: normalizeLang(safeStr(selected.lang_code) || "auto"),
+          sourceLang,
           transcript,
           segments,
         }),
