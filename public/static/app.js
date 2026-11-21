@@ -44,7 +44,11 @@
           if (res.status === 401) { location.href = '/giris?r=' + encodeURIComponent(location.pathname + location.search); return; }
           if (!res.ok) { alert(res.j.error || 'Bir hata oluştu.'); return; }
           btn.classList.toggle('on', res.j.liked);
-          btn.querySelector('[data-like-count]').textContent = res.j.count;
+          var label = btn.querySelector('[data-like-label]');
+          if (label) label.textContent = res.j.liked ? 'Beğendin' : 'Beğen';
+          var post = btn.closest('.post');
+          var likers = post && post.querySelector('[data-likers]');
+          if (likers) likers.textContent = res.j.text || '';
         })
         .catch(function () { alert('Bağlantı hatası.'); })
         .finally(function () { btn.disabled = false; });
@@ -62,6 +66,29 @@
       reply.value = (reply.value ? reply.value.replace(/\s*$/, '') + '\n\n' : '') + block;
       reply.focus();
       reply.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
+
+  // Hızlı cevap: cevap kutusuna git
+  document.querySelectorAll('[data-quick-reply]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!reply) return;
+      reply.focus();
+      reply.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
+
+  // Kullanıcı bilgi paneli: 1/2 sayfa geçişi
+  document.querySelectorAll('[data-panel]').forEach(function (panel) {
+    var pages = panel.querySelectorAll('[data-page]');
+    var label = panel.querySelector('[data-pp-label]');
+    var cur = 0;
+    panel.querySelectorAll('[data-pp]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        cur = (cur + Number(b.getAttribute('data-pp')) + pages.length) % pages.length;
+        pages.forEach(function (pg, i) { pg.hidden = i !== cur; });
+        if (label) label.textContent = (cur + 1) + '/' + pages.length;
+      });
     });
   });
 

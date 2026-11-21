@@ -50,7 +50,9 @@ function createImpl() {
   const mod = '@electric-sql/pglite';
   const { PGlite } = require(mod);
   const parsers = { [INT8]: (v) => Number(v) };
-  const db = new PGlite(process.env.DATA_DIR || path.join(__dirname, 'data', 'pg'));
+  const dir = process.env.DATA_DIR || path.join(__dirname, 'data', 'pg');
+  require('fs').mkdirSync(path.dirname(dir), { recursive: true });
+  const db = new PGlite(dir);
   const wrap = (c) => ({
     query: (sql, p) => c.query(sql, p, { parsers }).then((r) => r.rows),
     exec: (sql) => c.exec(sql).then(() => undefined),

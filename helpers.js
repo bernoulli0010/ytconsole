@@ -28,8 +28,68 @@ function timeAgo(ms) {
   if (s < 7 * 86400) return Math.floor(s / 86400) + ' gün önce';
   return dateShort(ms);
 }
-const dateShort = (ms) => new Date(ms).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
-const dateFull = (ms) => new Date(ms).toLocaleString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+// Sunucu (Vercel) UTC'de çalışır; tarihleri Türkiye saatiyle göster
+const TZ = 'Europe/Istanbul';
+const dateShort = (ms) => new Date(ms).toLocaleDateString('tr-TR', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric' });
+const dateFull = (ms) => new Date(ms).toLocaleString('tr-TR', { timeZone: TZ, day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const DT = new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+function dateTime(ms) {
+  const p = {};
+  for (const x of DT.formatToParts(new Date(ms))) p[x.type] = x.value;
+  return `${p.day}-${p.month}-${p.year}, ${p.hour}:${p.minute}:${p.second}`;
+}
+
+// "9 Yıl 11 Ay" gibi forum yaşı
+function forumAge(ms) {
+  const days = Math.floor((Date.now() - ms) / 86400000);
+  if (days < 1) return 'Yeni katıldı';
+  if (days < 30) return days + ' Gün';
+  const months = Math.floor(days / 30.44);
+  const y = Math.floor(months / 12), m = months % 12;
+  return [y ? y + ' Yıl' : '', m ? m + ' Ay' : ''].filter(Boolean).join(' ') || '1 Ay';
+}
+
+// Mesaj sayısına göre seviye ve bir sonraki seviyeye ilerleme
+const LEVELS = [0, 5, 15, 30, 60, 100, 200, 350, 600, 1000];
+function level(n) {
+  let i = 0;
+  while (i < LEVELS.length - 1 && n >= LEVELS[i + 1]) i++;
+  const next = LEVELS[i + 1];
+  return { level: i + 1, pct: next ? (n - LEVELS[i]) / (next - LEVELS[i]) : 1, next: next || null };
+}
+
+const ICONS = {
+  check: '<path d="M6 12.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  shield: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" fill="currentColor"/>',
+  flag: '<path d="M6 21V4M6 4h11l-2.5 4L17 12H6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>',
+  play: '<path d="M9 7v10l8-5z" fill="currentColor"/>',
+  chat: '<path d="M4 5h16v10H9l-4 4v-4H4z" fill="currentColor"/>',
+  thumb: '<path d="M7 10v10H4V10zm2 10h8l2.5-8.5A1.5 1.5 0 0 0 18 9.5h-5V5.5A1.5 1.5 0 0 0 11.5 4L9 10z" fill="currentColor"/>',
+  star: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.7 1-5.9-4.3-4.1 5.9-.8z" fill="currentColor"/>',
+};
+const icon = (k) => `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">${ICONS[k]}</svg>`;
+
+// Kullanıcı rozetleri (mesaj başlığında ismin yanında)
+function badges(u, isThreadOwner) {
+  const out = [];
+  if (u.role === 'admin') out.push({ cls: 'b-admin', title: 'Yönetici', html: icon('check') });
+  if (u.role === 'mod') out.push({ cls: 'b-mod', title: 'Moderatör', html: icon('shield') });
+  if (isThreadOwner) out.push({ cls: 'b-owner', title: 'Konu sahibi', html: icon('flag') });
+  if (u.channel) out.push({ cls: 'b-yt', title: 'YouTube kanalı var', html: icon('play') });
+  const lv = level(u.post_count || 0);
+  out.push({ cls: 'b-level', title: `Seviye ${lv.level}${lv.next ? ` (sonraki seviye ${lv.next} mesajda)` : ''}`, html: String(lv.level), pct: lv.pct });
+  if ((u.post_count || 0) >= 50) out.push({ cls: 'b-chat', title: 'Aktif üye (50+ mesaj)', html: icon('chat') });
+  if ((u.likes_received || 0) >= 10) out.push({ cls: 'b-like', title: 'Faydalı üye (10+ beğeni aldı)', html: icon('thumb') });
+  if (u.joined && Date.now() - u.joined > 365 * 86400000) out.push({ cls: 'b-vet', title: 'Kıdemli üye (1+ yıl)', html: icon('star') });
+  return out;
+}
+
+function likersText(names, count) {
+  if (!count) return '';
+  const shown = (names || []).slice(0, 3);
+  const rest = count - shown.length;
+  return shown.join(', ') + (rest > 0 ? ` ve ${rest} kişi daha` : '') + ' bunu beğendi.';
+}
 const num = (n) => Number(n || 0).toLocaleString('tr-TR');
 
 const ROLES = { admin: 'Yönetici', mod: 'Moderatör', uye: 'Üye' };
@@ -88,4 +148,4 @@ function excerpt(raw, n = 140) {
   return s.length > n ? s.slice(0, n - 1) + '…' : s;
 }
 
-module.exports = { esc, avatar, timeAgo, dateShort, dateFull, num, roleLabel, rank, slugify, threadUrl, userUrl, formatBody, excerpt };
+module.exports = { esc, avatar, timeAgo, dateShort, dateFull, dateTime, forumAge, level, badges, likersText, num, roleLabel, rank, slugify, threadUrl, userUrl, formatBody, excerpt };

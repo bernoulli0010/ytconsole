@@ -85,7 +85,11 @@ const q = {
   countPosts: 'SELECT COUNT(*)::int AS c FROM forum.posts WHERE thread_id = $1',
   postsInThread: `SELECT p.*, u.username, u.role, u.created_at AS joined, u.last_seen AS user_seen, u.channel,
       (SELECT COUNT(*)::int FROM forum.posts x WHERE x.user_id = u.id) AS post_count,
+      (SELECT COUNT(*)::int FROM forum.threads x WHERE x.user_id = u.id) AS thread_count,
+      (SELECT COUNT(*)::int FROM forum.likes l JOIN forum.posts x ON x.id = l.post_id WHERE x.user_id = u.id AND l.user_id <> u.id) AS likes_received,
       (SELECT COUNT(*)::int FROM forum.likes l WHERE l.post_id = p.id) AS like_count,
+      (SELECT array_agg(z.username) FROM (SELECT lu.username FROM forum.likes l JOIN forum.users lu ON lu.id = l.user_id
+         WHERE l.post_id = p.id ORDER BY lu.username LIMIT 3) z) AS likers,
       EXISTS(SELECT 1 FROM forum.likes l WHERE l.post_id = p.id AND l.user_id = $1) AS liked
     FROM forum.posts p JOIN forum.users u ON u.id = p.user_id WHERE p.thread_id = $2 ORDER BY p.id LIMIT $3 OFFSET $4`,
   postById: 'SELECT * FROM forum.posts WHERE id = $1',
@@ -100,6 +104,7 @@ const q = {
   insLike: 'INSERT INTO forum.likes(post_id, user_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
   delLike: 'DELETE FROM forum.likes WHERE post_id = $1 AND user_id = $2',
   likeCount: 'SELECT COUNT(*)::int AS c FROM forum.likes WHERE post_id = $1',
+  likers: 'SELECT u.username FROM forum.likes l JOIN forum.users u ON u.id = l.user_id WHERE l.post_id = $1 ORDER BY u.username LIMIT 3',
   topHelpers: `SELECT u.username, COUNT(*)::int AS likes FROM forum.likes l JOIN forum.posts p ON p.id = l.post_id JOIN forum.users u ON u.id = p.user_id
     WHERE l.user_id <> p.user_id GROUP BY u.id, u.username ORDER BY likes DESC LIMIT 5`,
 
@@ -250,6 +255,7 @@ app.use(async (req, res, next) => {
   res.locals.isOnline = isOnline;
   res.locals.path = req.path;
   res.locals.searchQ = '';
+  res.locals.siteUrl = `${req.protocol}://${req.get('host')}`;
   next();
 });
 
@@ -429,7 +435,8 @@ app.post('/api/mesaj/:id/begen', async (req, res) => {
   if (post.user_id === req.user.id) return res.status(400).json({ error: 'Kendi mesajını faydalı olarak işaretleyemezsin.' });
   const had = !!(await one(q.hasLike, [post.id, req.user.id]));
   await all(had ? q.delLike : q.insLike, [post.id, req.user.id]);
-  res.json({ liked: !had, count: (await one(q.likeCount, [post.id])).c });
+  const [cnt, likers] = await Promise.all([one(q.likeCount, [post.id]), all(q.likers, [post.id])]);
+  res.json({ liked: !had, count: cnt.c, text: h.likersText(likers.map((x) => x.username), cnt.c) });
 });
 
 app.post('/api/heartbeat', async (req, res) => {
