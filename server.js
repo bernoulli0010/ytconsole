@@ -578,7 +578,7 @@ function dbHint(err) {
   const msg = (err && err.message) || '';
   if (/DATABASE_URL/.test(msg)) return msg;
   const hints = {
-    ERR_INVALID_URL: 'DATABASE_URL geçerli bir adres değil. Şifrede @ # / ? % gibi özel karakter varsa Supabase şifresini sadece harf ve rakamdan oluşacak şekilde sıfırla.',
+    ERR_INVALID_URL: 'DATABASE_URL geçerli bir veritabanı adresi değil. postgresql://postgres.xxxx:SIFRE@aws-...pooler.supabase.com:6543/postgres biçiminde olmalı (https://xxxx.supabase.co proje adresi ya da API anahtarı değil). Supabase > Connect > "Transaction pooler" adresini kopyala.',
     ENOTFOUND: 'Veritabanı sunucusu bulunamadı. Supabase > Connect > "Transaction pooler" adresini (pooler.supabase.com, port 6543) kullan.',
     ENETUNREACH: 'Veritabanına ulaşılamıyor (IPv6). Supabase > Connect > "Transaction pooler" adresini kullan.',
     ECONNREFUSED: 'Veritabanı bağlantıyı reddetti. Port 6543 olan "Transaction pooler" adresini kullan.',

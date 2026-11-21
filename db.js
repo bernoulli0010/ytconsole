@@ -12,11 +12,10 @@ function createImpl() {
   if (process.env.DATABASE_URL) {
     const { Pool, types } = require('pg');
     types.setTypeParser(INT8, (v) => Number(v));
-    const u = new URL(process.env.DATABASE_URL);
-    u.searchParams.delete('sslmode');
-    const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(u.hostname);
+    const cfg = parseDbUrl(process.env.DATABASE_URL);
+    const local = /^(localhost|127\.0\.0\.1|::1)$/.test(cfg.host);
     const pool = new Pool({
-      connectionString: u.toString(),
+      ...cfg,
       ssl: local ? false : { rejectUnauthorized: false },
       max: Number(process.env.PG_POOL_MAX) || 3,
       idleTimeoutMillis: 10000,
@@ -57,6 +56,29 @@ function createImpl() {
     exec: (sql) => c.exec(sql).then(() => undefined),
   });
   return { ...wrap(db), tx: (fn) => db.transaction((t) => fn(wrap(t))) };
+}
+
+// postgresql://kullanici:sifre@host:port/veritabani adresini elle ayrıştırır.
+// Şifrede @ # / ? % gibi kodlanmamış karakterler ya da [köşeli parantez] olsa da çalışır.
+function parseDbUrl(raw) {
+  const s = String(raw).trim().replace(/^["']|["']$/g, '');
+  const m = /^postgres(?:ql)?:\/\/([^:/@]+)(?::(.*))?@([^@/:?]+|\[[^\]]+\])(?::(\d+))?(?:\/([^?#]*))?(?:\?.*)?$/s.exec(s);
+  if (!m) {
+    const e = new Error('DATABASE_URL biçimi tanınmadı');
+    e.code = 'ERR_INVALID_URL';
+    throw e;
+  }
+  const dec = (v) => { try { return decodeURIComponent(v); } catch { return v; } };
+  let password = m[2] == null ? undefined : m[2];
+  if (password && /^\[.*\]$/.test(password)) password = password.slice(1, -1);
+  if (password && /%[0-9a-f]{2}/i.test(password)) password = dec(password);
+  return {
+    user: dec(m[1]),
+    password,
+    host: m[3].replace(/^\[|\]$/g, ''),
+    port: m[4] ? Number(m[4]) : 5432,
+    database: dec(m[5] || 'postgres') || 'postgres',
+  };
 }
 
 function get() {
