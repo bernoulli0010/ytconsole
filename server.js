@@ -11,12 +11,17 @@ const SESSION_MS = 30 * 24 * 3600 * 1000;
 const THREADS_PER_PAGE = 25;
 const POSTS_PER_PAGE = 20;
 const FLOOD_MS = 15 * 1000;
+// Render (ve benzeri) HTTPS proxy arkasında çalışır: gerçek IP'yi al, çerezleri Secure yap
+const BEHIND_PROXY = !!process.env.RENDER || process.env.TRUST_PROXY === '1';
+const SECURE_COOKIES = BEHIND_PROXY || process.env.NODE_ENV === 'production';
 
 const app = express();
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.set('trust proxy', 'loopback');
+app.set('trust proxy', BEHIND_PROXY ? 1 : 'loopback');
 app.disable('x-powered-by');
+// Sağlık kontrolü: çevrimiçi sayacına ziyaretçi olarak yazılmaz
+app.get('/healthz', (req, res) => res.type('text').send('ok'));
 app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
 app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 
@@ -133,7 +138,7 @@ function parseCookies(req) {
   return out;
 }
 function setCookie(res, name, val, maxAgeSec) {
-  res.append('Set-Cookie', `${name}=${encodeURIComponent(val)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}`);
+  res.append('Set-Cookie', `${name}=${encodeURIComponent(val)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${SECURE_COOKIES ? '; Secure' : ''}`);
 }
 function hashPassword(pw) {
   const salt = crypto.randomBytes(16).toString('hex');

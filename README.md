@@ -24,7 +24,16 @@ Tarayıcıda http://localhost:3000 adresini aç. Port değiştirmek için: `$env
 - Yönetici/moderatör: konu sabitleme, kilitleme, silme
 - Koyu / açık tema, mobil uyumlu
 
-Veriler `data/forum.db` dosyasında tutulur. Bir kullanıcıyı moderatör yapmak için (sunucu kapalıyken):
+## Render'a yükleme
+
+1. render.com'da GitHub ile giriş yap.
+2. **New > Blueprint** seç, `ytconsole` reposunu bağla. `render.yaml` her şeyi otomatik ayarlar (Node 24, 1 GB kalıcı disk `/var/data`, sağlık kontrolü `/healthz`).
+3. **Apply** de, kurulum bitince verilen `https://ytconsole-xxxx.onrender.com` adresini aç ve ilk kaydı sen yap (yönetici olursun).
+
+Not: Kalıcı disk sadece ücretli planlarda var. Ücretsiz planda sunucu her yeniden başladığında tüm konular/üyeler silinir.
+Kendi alan adın için: Render panelinde servis > **Settings > Custom Domains**.
+
+Veriler `data/forum.db` dosyasında tutulur (Render'da `DATA_DIR=/var/data`). Bir kullanıcıyı moderatör yapmak için (sunucu kapalıyken):
 
 ```
 node -e "const {DatabaseSync}=require('node:sqlite');new DatabaseSync('data/forum.db').prepare(\"UPDATE users SET role='mod' WHERE username=?\").run('kullaniciadi')"

@@ -1,0 +1,21 @@
+# Render Blueprint: Render panelinde "New > Blueprint" ile bu repoyu seçince otomatik kurulur.
+services:
+  - type: web
+    name: ytconsole
+    runtime: node
+    plan: starter            # Kalıcı disk ücretsiz planda yok; veriler kaybolmasın diye starter gerekli
+    region: frankfurt
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: forum-data
+      mountPath: /var/data
+      sizeGB: 1
