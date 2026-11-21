@@ -568,9 +568,28 @@ app.use(async (err, req, res, _next) => {
     res.locals.searchQ = '';
     await fail(req, res, 500, 'Beklenmeyen bir hata oluştu. Lütfen tekrar dene.');
   } catch {
-    res.status(500).type('text').send('Sunucu hatası: ' + (err && err.message && /DATABASE_URL/.test(err.message) ? err.message : 'lütfen daha sonra tekrar dene.'));
+    res.status(500).type('text').send('Sunucu hatası: ' + dbHint(err));
   }
 });
+
+// Veritabanı bağlantı hatalarında şifre/adres göstermeden ipucu ver
+function dbHint(err) {
+  const code = (err && err.code) || '';
+  const msg = (err && err.message) || '';
+  if (/DATABASE_URL/.test(msg)) return msg;
+  const hints = {
+    ERR_INVALID_URL: 'DATABASE_URL geçerli bir adres değil. Şifrede @ # / ? % gibi özel karakter varsa Supabase şifresini sadece harf ve rakamdan oluşacak şekilde sıfırla.',
+    ENOTFOUND: 'Veritabanı sunucusu bulunamadı. Supabase > Connect > "Transaction pooler" adresini (pooler.supabase.com, port 6543) kullan.',
+    ENETUNREACH: 'Veritabanına ulaşılamıyor (IPv6). Supabase > Connect > "Transaction pooler" adresini kullan.',
+    ECONNREFUSED: 'Veritabanı bağlantıyı reddetti. Port 6543 olan "Transaction pooler" adresini kullan.',
+    ETIMEDOUT: 'Veritabanı bağlantısı zaman aşımına uğradı. Supabase projesi duraklatılmış olabilir (Supabase panelinden "Restore").',
+    '28P01': 'Veritabanı şifresi hatalı. [YOUR-PASSWORD] yerine doğru şifreyi yazdığından emin ol.',
+    XX000: 'Supabase bağlantıyı kabul etmedi (kullanıcı adı postgres.<proje-id> biçiminde olmalı). Adresi Connect ekranından aynen kopyala.',
+    '3D000': 'Veritabanı adı hatalı; adresin sonu /postgres olmalı.',
+  };
+  const hint = hints[code] || (/timeout/i.test(msg) ? hints.ETIMEDOUT : /password authentication/i.test(msg) ? hints['28P01'] : /Tenant or user not found/i.test(msg) ? hints.XX000 : null);
+  return (hint || 'lütfen daha sonra tekrar dene.') + (code ? ` [kod: ${code}]` : '');
+}
 
 // Vercel bu dosyayı fonksiyon olarak kullanır; doğrudan çalıştırılınca sunucu başlar.
 if (require.main === module) {
