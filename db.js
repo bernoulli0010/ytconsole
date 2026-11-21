@@ -61,10 +61,15 @@ function createImpl() {
 // postgresql://kullanici:sifre@host:port/veritabani adresini elle ayrıştırır.
 // Şifrede @ # / ? % gibi kodlanmamış karakterler ya da [köşeli parantez] olsa da çalışır.
 function parseDbUrl(raw) {
-  const s = String(raw).trim().replace(/^["']|["']$/g, '');
+  const s = String(raw).trim().replace(/^DATABASE_URL\s*=\s*/i, '').trim().replace(/^["']|["']$/g, '');
   const m = /^postgres(?:ql)?:\/\/([^:/@]+)(?::(.*))?@([^@/:?]+|\[[^\]]+\])(?::(\d+))?(?:\/([^?#]*))?(?:\?.*)?$/s.exec(s);
   if (!m) {
-    const e = new Error('DATABASE_URL biçimi tanınmadı');
+    // Değeri göstermeden ne girildiğini tahmin et
+    const what = /^https?:\/\//i.test(s) ? 'Supabase proje/API adresi (https://...) girilmiş.'
+      : /^eyJ|^sb_/.test(s) ? 'Supabase API anahtarı girilmiş.'
+      : /^postgres/i.test(s) ? 'postgresql:// ile başlıyor ama içinde kullanıcı:şifre@sunucu kısmı eksik ya da bozuk.'
+      : `Değer postgresql:// ile başlamıyor (${s.length} karakter).`;
+    const e = new Error(`DATABASE_URL bir veritabanı bağlantı adresi değil: ${what} Supabase > Connect > "Transaction pooler" bölümündeki postgresql://postgres.xxxx:SIFRE@aws-...pooler.supabase.com:6543/postgres adresini girmelisin.`);
     e.code = 'ERR_INVALID_URL';
     throw e;
   }
