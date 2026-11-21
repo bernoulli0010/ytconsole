@@ -1,0 +1,12 @@
+<% if (pages > 1) { %>
+<nav class="pager" aria-label="Sayfalar">
+  <% var sep = base.indexOf('?') >= 0 ? '&' : '?'; %>
+  <% if (page > 1) { %><a href="<%= base %><%= page - 1 > 1 ? sep + 'sayfa=' + (page - 1) : '' %>">‹ Önceki</a><% } %>
+  <% for (var i = 1; i <= pages; i++) { %>
+    <% if (i === 1 || i === pages || Math.abs(i - page) <= 2) { %>
+      <a class="<%= i === page ? 'on' : '' %>" href="<%= base %><%= i > 1 ? sep + 'sayfa=' + i : '' %>"><%= i %></a>
+    <% } else if (Math.abs(i - page) === 3) { %><span>…</span><% } %>
+  <% } %>
+  <% if (page < pages) { %><a href="<%= base %><%= sep %>sayfa=<%= page + 1 %>">Sonraki ›</a><% } %>
+</nav>
+<% } %>

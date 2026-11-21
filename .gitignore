@@ -1,6 +1,2 @@
-supabase.exe
 node_modules/
-.env
-.DS_Store
-*.log
-nul
+data/

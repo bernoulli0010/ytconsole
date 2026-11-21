@@ -1,0 +1,42 @@
+<aside class="col-side">
+  <%- include('online-card') %>
+
+  <section class="card side-card">
+    <div class="side-h"><h3>Forum istatistikleri</h3></div>
+    <dl class="stats">
+      <div><dt>Konular</dt><dd><%= h.num(stats.threads) %></dd></div>
+      <div><dt>Mesajlar</dt><dd><%= h.num(stats.posts) %></dd></div>
+      <div><dt>Üyeler</dt><dd><%= h.num(stats.users) %></dd></div>
+      <div><dt>En yeni üye</dt><dd><% if (stats.newest) { %><a href="<%= h.userUrl(stats.newest) %>"><%= stats.newest %></a><% } else { %>-<% } %></dd></div>
+    </dl>
+  </section>
+
+  <% if (helpers.length) { %>
+  <section class="card side-card">
+    <div class="side-h"><h3>En faydalı üyeler</h3></div>
+    <ul class="helpers">
+      <% helpers.forEach(function (x) { %>
+      <li>
+        <%- h.avatar(x.username, 'sm') %>
+        <a href="<%= h.userUrl(x.username) %>"><%= x.username %></a>
+        <span class="plus">+<%= x.likes %></span>
+      </li>
+      <% }) %>
+    </ul>
+  </section>
+  <% } %>
+
+  <% if (latest.length) { %>
+  <section class="card side-card">
+    <div class="side-h"><h3>Son hareketler</h3><a href="/yeni-mesajlar">Tümü</a></div>
+    <ul class="mini-threads">
+      <% latest.forEach(function (t) { %>
+      <li>
+        <a href="<%= h.threadUrl(t) %>"><%= t.title %></a>
+        <span><%= t.last_user || t.author %> · <%= h.timeAgo(t.last_post_at) %></span>
+      </li>
+      <% }) %>
+    </ul>
+  </section>
+  <% } %>
+</aside>

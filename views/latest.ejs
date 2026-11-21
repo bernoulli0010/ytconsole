@@ -1,0 +1,20 @@
+<%- include('partials/header') %>
+<nav class="crumbs"><a href="/">Forum</a><span>›</span><span>Yeni Mesajlar</span></nav>
+<div class="layout">
+  <div class="col-main">
+    <div class="page-h card">
+      <div class="ph-text">
+        <h1>Yeni Mesajlar</h1>
+        <p>Tüm kategorilerde en son cevap alan konular.</p>
+      </div>
+      <a class="btn" href="/yeni-konu">Yeni konu</a>
+    </div>
+    <section class="card list">
+      <% if (!threads.length) { %><div class="empty"><p>Henüz konu yok.</p></div><% } %>
+      <% threads.forEach(function (t) { %><%- include('partials/thread-row', { t: t, showCat: true }) %><% }) %>
+    </section>
+    <%- include('partials/pager') %>
+  </div>
+  <%- include('partials/sidebar') %>
+</div>
+<%- include('partials/footer') %>

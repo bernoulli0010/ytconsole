@@ -1,0 +1,22 @@
+<div class="thread-row<%= t.pinned ? ' pinned' : '' %>">
+  <%- h.avatar(t.author, 'md') %>
+  <div class="tr-main">
+    <div class="tr-title">
+      <% if (t.pinned) { %><span class="tag tag-pin">Sabit</span><% } %>
+      <% if (t.locked) { %><span class="tag tag-lock">Kilitli</span><% } %>
+      <a href="<%= h.threadUrl(t) %>"><%= t.title %></a>
+    </div>
+    <div class="tr-meta">
+      <a href="<%= h.userUrl(t.author) %>"><%= t.author %></a> · <%= h.timeAgo(t.created_at) %>
+      <% if (typeof showCat !== 'undefined' && showCat) { %> · <a class="cat-link" href="/kategori/<%= t.cat_slug %>"><%= t.cat_name %></a><% } %>
+    </div>
+  </div>
+  <div class="tr-stats">
+    <div><b><%= h.num(t.reply_count) %></b><span>Cevap</span></div>
+    <div><b><%= h.num(t.views) %></b><span>Görüntü</span></div>
+  </div>
+  <div class="tr-last">
+    <span><%= h.timeAgo(t.last_post_at) %></span>
+    <a href="<%= h.userUrl(t.last_user || t.author) %>"><%= t.last_user || t.author %></a>
+  </div>
+</div>

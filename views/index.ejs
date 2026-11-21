@@ -1,0 +1,48 @@
+<%- include('partials/header') %>
+<div class="welcome">
+  <div>
+    <h1>YouTube içerik üreticilerinin buluşma noktası</h1>
+    <p>Kanalını büyüt, sorularını sor, deneyimini paylaş. Burada her şey ücretsiz.</p>
+  </div>
+  <a class="btn" href="/yeni-konu">
+    <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    Yeni konu aç
+  </a>
+</div>
+
+<div class="layout">
+  <div class="col-main">
+    <% sections.forEach(function (s) { %>
+    <section class="card section">
+      <header class="section-h">
+        <h2><%= s.name %></h2>
+        <span class="sh-cols"><span>Konu</span><span>Mesaj</span><span class="sh-last">Son mesaj</span></span>
+      </header>
+      <% s.categories.forEach(function (c) { %>
+      <div class="cat-row">
+        <div class="cat-icon"><%= c.icon %></div>
+        <div class="cat-info">
+          <a class="cat-name" href="/kategori/<%= c.slug %>"><%= c.name %></a>
+          <p><%= c.description %></p>
+        </div>
+        <div class="cat-num"><b><%= h.num(c.thread_count) %></b><span>Konu</span></div>
+        <div class="cat-num"><b><%= h.num(c.post_count) %></b><span>Mesaj</span></div>
+        <div class="cat-last">
+          <% if (c.last_id) { %>
+            <%- h.avatar(c.last_user, 'sm') %>
+            <div>
+              <a href="<%= h.threadUrl({ id: c.last_id, title: c.last_title }) %>"><%= c.last_title %></a>
+              <span><%= c.last_user %> · <%= h.timeAgo(c.last_at) %></span>
+            </div>
+          <% } else { %>
+            <span class="muted">Henüz konu yok</span>
+          <% } %>
+        </div>
+      </div>
+      <% }) %>
+    </section>
+    <% }) %>
+  </div>
+  <%- include('partials/sidebar') %>
+</div>
+<%- include('partials/footer') %>

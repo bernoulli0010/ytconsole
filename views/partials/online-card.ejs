@@ -1,0 +1,19 @@
+<section class="card side-card online-card">
+  <div class="side-h">
+    <h3><span class="live-dot"></span>Şu an forumda</h3>
+    <a href="/cevrimici">Detaylar</a>
+  </div>
+  <div class="online-big">
+    <b data-online-total><%= online.total %></b>
+    <span>kişi çevrimiçi</span>
+  </div>
+  <div class="online-split">
+    <div><b data-online-members><%= online.members.length %></b><span>üye</span></div>
+    <div><b data-online-guests><%= online.guests %></b><span>ziyaretçi</span></div>
+  </div>
+  <div class="online-list" data-online-list>
+    <% online.members.slice(0, 40).forEach(function (m, i) { %><a class="role-<%= m.role %>" href="<%= h.userUrl(m.username) %>"><%= m.username %></a><% if (i < Math.min(online.members.length, 40) - 1) { %>, <% } %><% }) %>
+    <% if (!online.members.length) { %><span class="muted">Şu an çevrimiçi üye yok.</span><% } %>
+  </div>
+  <p class="record">Rekor: <b><%= h.num(online.record.count) %></b> kişi · <%= h.dateShort(online.record.at) %></p>
+</section>

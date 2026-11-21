@@ -1,0 +1,44 @@
+<%- include('partials/header') %>
+<nav class="crumbs"><a href="/">Forum</a><span>›</span><a href="/uyeler">Üyeler</a><span>›</span><span><%= u.username %></span></nav>
+
+<section class="card profile-h">
+  <div class="pa-av"><%- h.avatar(u.username, 'xl') %><% if (isOnline(u.last_seen)) { %><span class="on-dot"></span><% } %></div>
+  <div class="ph-text">
+    <h1 class="role-<%= u.role %>"><%= u.username %></h1>
+    <p>
+      <span class="badge badge-<%= u.role %>"><%= u.role === 'uye' ? h.rank(u.post_count) : h.roleLabel(u.role) %></span>
+      <span class="muted"> · Katılım <%= h.dateShort(u.created_at) %> ·
+        <% if (isOnline(u.last_seen)) { %><span class="on-txt">Şu an çevrimiçi</span><% } else { %>Son görülme <%= h.timeAgo(u.last_seen) %><% } %></span>
+    </p>
+    <% if (u.bio) { %><p class="bio"><%= u.bio %></p><% } %>
+    <% if (u.channel) { %><a class="btn ghost sm" href="<%= u.channel %>" target="_blank" rel="nofollow noopener noreferrer">▶ YouTube kanalı</a><% } %>
+    <% if (user && user.id === u.id) { %><a class="btn ghost sm" href="/profil/duzenle">Profili düzenle</a><% } %>
+  </div>
+  <dl class="profile-stats">
+    <div><dd><%= h.num(u.post_count) %></dd><dt>Mesaj</dt></div>
+    <div><dd><%= h.num(u.thread_count) %></dd><dt>Konu</dt></div>
+    <div><dd><%= h.num(u.like_count) %></dd><dt>Faydalı</dt></div>
+  </dl>
+</section>
+
+<div class="two-col">
+  <section class="card list">
+    <div class="list-h"><h2>Açtığı konular</h2></div>
+    <% if (!threads.length) { %><div class="empty"><p>Henüz konu açmadı.</p></div><% } %>
+    <% threads.forEach(function (t) { %><%- include('partials/thread-row', { t: t, showCat: true }) %><% }) %>
+  </section>
+  <section class="card list">
+    <div class="list-h"><h2>Son mesajları</h2></div>
+    <% if (!posts.length) { %><div class="empty"><p>Henüz mesaj yok.</p></div><% } %>
+    <ul class="recent-posts">
+      <% posts.forEach(function (p) { %>
+      <li>
+        <a href="/mesaj/<%= p.id %>"><%= p.title %></a>
+        <p><%= h.excerpt(p.body, 120) %></p>
+        <span class="muted small"><%= h.timeAgo(p.created_at) %></span>
+      </li>
+      <% }) %>
+    </ul>
+  </section>
+</div>
+<%- include('partials/footer') %>

@@ -1,0 +1,37 @@
+<%- include('partials/header') %>
+<nav class="crumbs"><a href="/">Forum</a><span>›</span><span>Çevrimiçi</span></nav>
+
+<div class="online-hero card">
+  <div class="oh-main">
+    <span class="live-dot lg"></span>
+    <div>
+      <h1><b data-online-total><%= online.total %></b> kişi şu an forumda</h1>
+      <p class="muted">Son 5 dakika içinde aktif olan herkes çevrimiçi sayılır. Liste kendiliğinden güncellenir.</p>
+    </div>
+  </div>
+  <div class="oh-stats">
+    <div><b data-online-members><%= online.members.length %></b><span>Üye</span></div>
+    <div><b data-online-guests><%= online.guests %></b><span>Ziyaretçi</span></div>
+    <div><b><%= h.num(online.record.count) %></b><span>Rekor · <%= h.dateShort(online.record.at) %></span></div>
+  </div>
+</div>
+
+<section class="card list">
+  <div class="table-h"><span>Kim</span><span>Nerede</span><span>Son hareket</span></div>
+  <% online.members.forEach(function (m) { %>
+  <div class="table-row">
+    <span class="who"><%- h.avatar(m.username, 'sm') %><a class="role-<%= m.role %>" href="<%= h.userUrl(m.username) %>"><%= m.username %></a>
+      <% if (m.role !== 'uye') { %><span class="badge badge-<%= m.role %>"><%= h.roleLabel(m.role) %></span><% } %></span>
+    <span class="where"><a href="<%= m.url || '/' %>"><%= m.location || 'Forumda' %></a></span>
+    <span class="when muted"><%= h.timeAgo(m.last_seen) %></span>
+  </div>
+  <% }) %>
+  <% guestList.forEach(function (g) { %>
+  <div class="table-row">
+    <span class="who"><span class="av av-sm guest" aria-hidden="true">?</span><span class="muted">Ziyaretçi</span></span>
+    <span class="where"><a href="<%= g.url || '/' %>"><%= g.location || 'Forumda' %></a></span>
+    <span class="when muted"><%= h.timeAgo(g.last_seen) %></span>
+  </div>
+  <% }) %>
+</section>
+<%- include('partials/footer') %>

@@ -1,0 +1,14 @@
+<%- include('partials/header') %>
+<section class="card form-card auth">
+  <h1>Tekrar hoş geldin</h1>
+  <p class="muted">ytconsole hesabınla giriş yap.</p>
+  <% if (error) { %><div class="alert"><%= error %></div><% } %>
+  <form method="post" action="/giris" class="form">
+    <input type="hidden" name="r" value="<%= r %>">
+    <label>Kullanıcı adı<input name="username" autocomplete="username" required value="<%= form.username || '' %>" autofocus></label>
+    <label>Şifre<input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="btn block" type="submit">Giriş yap</button>
+  </form>
+  <p class="muted center">Hesabın yok mu? <a href="/kayit">Ücretsiz kayıt ol</a></p>
+</section>
+<%- include('partials/footer') %>

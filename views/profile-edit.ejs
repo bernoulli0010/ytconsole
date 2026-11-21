@@ -1,0 +1,16 @@
+<%- include('partials/header') %>
+<section class="card form-card">
+  <h1>Profili düzenle</h1>
+  <% if (error) { %><div class="alert"><%= error %></div><% } %>
+  <% if (saved) { %><div class="alert ok">Profilin kaydedildi.</div><% } %>
+  <form method="post" action="/profil/duzenle" class="form">
+    <label>YouTube kanalın
+      <input name="channel" type="url" value="<%= form.channel %>" placeholder="https://www.youtube.com/@kanaladi">
+    </label>
+    <label>Hakkında
+      <textarea name="bio" rows="4" maxlength="300" placeholder="Kanalın, içerik türün, hedeflerin…"><%= form.bio %></textarea>
+    </label>
+    <div class="form-foot"><a class="btn ghost" href="<%= h.userUrl(user.username) %>">Profile dön</a><button class="btn" type="submit">Kaydet</button></div>
+  </form>
+</section>
+<%- include('partials/footer') %>

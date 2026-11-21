@@ -1,0 +1,25 @@
+<%- include('partials/header') %>
+<nav class="crumbs"><a href="/">Forum</a><span>›</span><span>Yeni konu</span></nav>
+<section class="card form-card wide">
+  <h1>Yeni konu aç</h1>
+  <% if (error) { %><div class="alert"><%= error %></div><% } %>
+  <form method="post" action="/yeni-konu" class="form">
+    <label>Kategori
+      <select name="kategori" required>
+        <option value="">Kategori seç…</option>
+        <% categories.forEach(function (c) { if (c.slug === 'duyurular' && !isMod) return; %>
+          <option value="<%= c.slug %>" <%= form.kategori === c.slug ? 'selected' : '' %>><%= c.icon %> <%= c.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Başlık
+      <input name="baslik" maxlength="120" minlength="5" required value="<%= form.baslik || '' %>" placeholder="Örn: Shorts izlenmelerim neden aniden düştü?">
+    </label>
+    <label>Mesaj
+      <textarea name="mesaj" rows="12" maxlength="10000" required placeholder="Sorunu ya da paylaşımını detaylıca anlat. Kanal türü, abone sayısı, denediklerin…"><%= form.mesaj || '' %></textarea>
+    </label>
+    <p class="hint">İpucu: Alıntı için satır başına <code>&gt;</code> koy. YouTube bağlantıları otomatik olarak video olarak gösterilir.</p>
+    <div class="form-foot"><a class="btn ghost" href="/">Vazgeç</a><button class="btn" type="submit">Konuyu yayınla</button></div>
+  </form>
+</section>
+<%- include('partials/footer') %>

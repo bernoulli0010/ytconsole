@@ -1,0 +1,84 @@
+<%- include('partials/header') %>
+<nav class="crumbs"><a href="/">Forum</a><span>›</span><a href="/kategori/<%= t.cat_slug %>"><%= t.cat_name %></a><span>›</span><span class="crumb-cur"><%= t.title %></span></nav>
+
+<div class="thread-h card">
+  <div>
+    <h1>
+      <% if (t.pinned) { %><span class="tag tag-pin">Sabit</span><% } %>
+      <% if (t.locked) { %><span class="tag tag-lock">Kilitli</span><% } %>
+      <%= t.title %>
+    </h1>
+    <p class="muted"><%= h.num(t.reply_count) %> cevap · <%= h.num(t.views) %> görüntülenme · <%= h.dateFull(t.created_at) %></p>
+  </div>
+  <% if (isMod) { %>
+  <div class="mod-actions">
+    <form method="post" action="/konu/<%= t.id %>/sabitle"><button class="btn ghost sm"><%= t.pinned ? 'Sabitlemeyi kaldır' : 'Sabitle' %></button></form>
+    <form method="post" action="/konu/<%= t.id %>/kilitle"><button class="btn ghost sm"><%= t.locked ? 'Kilidi aç' : 'Kilitle' %></button></form>
+    <form method="post" action="/konu/<%= t.id %>/sil" data-confirm="Bu konu ve tüm mesajları silinecek. Emin misin?"><button class="btn danger sm">Konuyu sil</button></form>
+  </div>
+  <% } %>
+</div>
+
+<%- include('partials/pager') %>
+
+<div class="posts">
+<% posts.forEach(function (p, i) { var mine = user && user.id === p.user_id; %>
+  <article class="post card" id="m<%= p.id %>">
+    <aside class="post-author">
+      <a class="pa-av" href="<%= h.userUrl(p.username) %>"><%- h.avatar(p.username, 'lg') %><% if (isOnline(p.user_seen)) { %><span class="on-dot" title="Çevrimiçi"></span><% } %></a>
+      <div class="pa-info">
+        <a class="pa-name role-<%= p.role %>" href="<%= h.userUrl(p.username) %>"><%= p.username %></a>
+        <span class="badge badge-<%= p.role %>"><%= p.role === 'uye' ? h.rank(p.post_count) : h.roleLabel(p.role) %></span>
+        <dl class="pa-meta">
+          <div><dt>Mesaj</dt><dd><%= h.num(p.post_count) %></dd></div>
+          <div><dt>Katılım</dt><dd><%= h.dateShort(p.joined) %></dd></div>
+        </dl>
+        <% if (p.channel) { %><a class="pa-channel" href="<%= p.channel %>" target="_blank" rel="nofollow noopener noreferrer">▶ Kanalı</a><% } %>
+      </div>
+    </aside>
+    <div class="post-main">
+      <div class="post-top">
+        <span title="<%= h.dateFull(p.created_at) %>"><%= h.timeAgo(p.created_at) %></span>
+        <a href="/mesaj/<%= p.id %>">#<%= offset + i + 1 %></a>
+      </div>
+      <div class="post-body"><%- h.formatBody(p.body) %></div>
+      <% if (p.edited_at) { %><p class="edited">Düzenlendi: <%= h.timeAgo(p.edited_at) %></p><% } %>
+      <div class="post-actions">
+        <button type="button" class="act like<%= p.liked ? ' on' : '' %>" data-like="<%= p.id %>" <%= mine ? 'disabled title="Kendi mesajın"' : '' %>>
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 11v9H4v-9h3zm2 9h8.3a2 2 0 0 0 2-1.6l1.2-6A2 2 0 0 0 18.5 10H14V6a2 2 0 0 0-2-2l-3 7v9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          Faydalı <b data-like-count><%= p.like_count %></b>
+        </button>
+        <% if (user && (!t.locked || isMod)) { %>
+        <button type="button" class="act" data-quote="<%= p.username %>" data-quote-text="<%= h.excerpt(p.body, 300) %>">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 7h4v4H8c0 2 1 3 3 3v2c-3 0-5-2-5-5V8l1-1zm8 0h4v4h-3c0 2 1 3 3 3v2c-3 0-5-2-5-5V8l1-1z" fill="currentColor"/></svg>
+          Alıntıla
+        </button>
+        <% } %>
+        <% if (mine || isMod) { %>
+          <a class="act" href="/mesaj/<%= p.id %>/duzenle">Düzenle</a>
+          <form method="post" action="/mesaj/<%= p.id %>/sil" data-confirm="<%= p.id === firstPostId ? 'Bu ilk mesaj; silinirse konunun tamamı silinir. Emin misin?' : 'Bu mesaj silinecek. Emin misin?' %>">
+            <button class="act danger-txt">Sil</button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+  </article>
+<% }) %>
+</div>
+
+<%- include('partials/pager') %>
+
+<section class="card reply" id="cevap">
+  <% if (!user) { %>
+    <p class="reply-guest">Cevap yazmak için <a href="/giris?r=<%= encodeURIComponent(base) %>">giriş yap</a> ya da <a href="/kayit">ücretsiz kayıt ol</a>.</p>
+  <% } else if (t.locked && !isMod) { %>
+    <p class="reply-guest">🔒 Bu konu kilitli, yeni cevap yazılamaz.</p>
+  <% } else { %>
+    <form method="post" action="/konu/<%= t.id %>/cevap">
+      <div class="reply-h"><%- h.avatar(user.username, 'sm') %><b>Cevap yaz</b></div>
+      <textarea id="reply-body" name="mesaj" rows="6" maxlength="10000" required placeholder="Düşünceni yaz… (Alıntı için satır başına > koy, YouTube linkleri otomatik gömülür)"></textarea>
+      <div class="reply-foot"><span class="muted small">Saygılı ve yapıcı ol 🙂</span><button class="btn" type="submit">Gönder</button></div>
+    </form>
+  <% } %>
+</section>
+<%- include('partials/footer') %>

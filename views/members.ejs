@@ -1,0 +1,18 @@
+<%- include('partials/header') %>
+<nav class="crumbs"><a href="/">Forum</a><span>›</span><span>Üyeler</span></nav>
+<div class="page-h card">
+  <div class="ph-text"><h1>Üyeler</h1><p>En çok mesaj yazan üyeler önce.</p></div>
+</div>
+<section class="card list">
+  <div class="table-h members-h"><span>Üye</span><span>Mesaj</span><span>Katılım</span><span>Son görülme</span></div>
+  <% members.forEach(function (m) { %>
+  <div class="table-row members-row">
+    <span class="who"><%- h.avatar(m.username, 'sm') %><a class="role-<%= m.role %>" href="<%= h.userUrl(m.username) %>"><%= m.username %></a>
+      <span class="badge badge-<%= m.role %>"><%= m.role === 'uye' ? h.rank(m.post_count) : h.roleLabel(m.role) %></span></span>
+    <span><%= h.num(m.post_count) %></span>
+    <span class="muted"><%= h.dateShort(m.created_at) %></span>
+    <span class="muted"><% if (isOnline(m.last_seen)) { %><span class="on-txt">● Çevrimiçi</span><% } else { %><%= h.timeAgo(m.last_seen) %><% } %></span>
+  </div>
+  <% }) %>
+</section>
+<%- include('partials/footer') %>
