@@ -20,7 +20,11 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', BEHIND_PROXY ? 1 : 'loopback');
 app.disable('x-powered-by');
-app.get('/healthz', (req, res) => res.type('text').send('ok'));
+app.get('/healthz', (req, res) => {
+  // Sadece bölge bilgisi (örn. eu-central-1); adres/şifre gösterilmez
+  const m = /@aws-\d+-([a-z]+-[a-z]+-\d)\.pooler\.supabase\.com/.exec(process.env.DATABASE_URL || '');
+  res.type('text').send(`ok fn=${process.env.VERCEL_REGION || '-'} db=${m ? m[1] : '-'}`);
+});
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', index: false }));
 app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 
