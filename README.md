@@ -1,17 +1,26 @@
 # ytconsole
 
-YouTube içerik üreticileri için basit, hızlı bir forum. Node.js + Express + SQLite (Node'un dahili `node:sqlite` modülü, ek veritabanı kurulumu gerekmez).
+YouTube içerik üreticileri için basit, hızlı bir forum. Node.js + Express + Postgres (Supabase). Vercel'de çalışır.
 
-## Çalıştırma
+## Yerelde çalıştırma
 
 ```
 npm install
 npm start
 ```
 
-Tarayıcıda http://localhost:3000 adresini aç. Port değiştirmek için: `$env:PORT=8080; npm start`
+Tarayıcıda http://localhost:3000 adresini aç. `DATABASE_URL` tanımlı değilse yerel, gömülü bir Postgres (`data/pg` klasörü) kullanılır; ek kurulum gerekmez.
 
 **İlk kayıt olan kullanıcı otomatik olarak Yönetici olur.**
+
+## Vercel + Supabase ile yayına alma
+
+1. **Supabase** > projen > **Connect** > **Transaction pooler** bağlantı adresini kopyala (port `6543`). `[YOUR-PASSWORD]` kısmını veritabanı şifrenle değiştir.
+2. **Vercel** > proje > **Settings > Environment Variables**: `DATABASE_URL` adında ekle, değer olarak bu adresi yapıştır (Production + Preview).
+3. **Deployments** > son deploy > **Redeploy**. İlk istekte tablolar `forum` şemasında otomatik oluşturulur.
+4. Siteyi aç ve ilk kaydı sen yap.
+
+Tablolar `forum` şemasında durur ve RLS açıktır; Supabase'in herkese açık API'si bunlara erişemez.
 
 ## Özellikler
 
@@ -24,17 +33,10 @@ Tarayıcıda http://localhost:3000 adresini aç. Port değiştirmek için: `$env
 - Yönetici/moderatör: konu sabitleme, kilitleme, silme
 - Koyu / açık tema, mobil uyumlu
 
-## Render'a yükleme
+## Moderatör atama
 
-1. render.com'da GitHub ile giriş yap.
-2. **New > Blueprint** seç, `ytconsole` reposunu bağla. `render.yaml` her şeyi otomatik ayarlar (Node 24, 1 GB kalıcı disk `/var/data`, sağlık kontrolü `/healthz`).
-3. **Apply** de, kurulum bitince verilen `https://ytconsole-xxxx.onrender.com` adresini aç ve ilk kaydı sen yap (yönetici olursun).
+Supabase > **SQL Editor**:
 
-Not: Kalıcı disk sadece ücretli planlarda var. Ücretsiz planda sunucu her yeniden başladığında tüm konular/üyeler silinir.
-Kendi alan adın için: Render panelinde servis > **Settings > Custom Domains**.
-
-Veriler `data/forum.db` dosyasında tutulur (Render'da `DATA_DIR=/var/data`). Bir kullanıcıyı moderatör yapmak için (sunucu kapalıyken):
-
-```
-node -e "const {DatabaseSync}=require('node:sqlite');new DatabaseSync('data/forum.db').prepare(\"UPDATE users SET role='mod' WHERE username=?\").run('kullaniciadi')"
+```sql
+UPDATE forum.users SET role = 'mod' WHERE lower(username) = lower('kullaniciadi');
 ```
